@@ -16,7 +16,7 @@ type Master struct {
 	jobCount            uint
 	workerPanic         chan string
 	stopRecvWorkerEvent chan interface{}
-	WorkerQueue         chan *Worker
+	WorkerReadyQueue    chan *Worker
 	Quit                chan bool
 	Counts              uint64
 }
@@ -40,7 +40,7 @@ func NewMaster() (*Master, error) {
 		workerPanic:         make(chan string),
 		stopRecvWorkerEvent: make(chan interface{}),
 		Quit:                make(chan bool),
-		WorkerQueue:         make(chan *Worker),
+		WorkerReadyQueue:    make(chan *Worker),
 		Counts:              0,
 	}
 
@@ -54,14 +54,14 @@ func (m *Master) AddWorker(worker *Worker) error {
 	if worker == nil {
 		return errors.New("invalid worker")
 	}
-	if uint(len(m.Pool)) > PoolSize {
+	if uint(m.GetWorkers()) > PoolSize {
 		return errors.New("exceed max pool size")
 	}
 
 	worker.Recovery = m.workerPanic // pass recovery chan to worker
 	worker.Start()
 	go func() {
-		m.WorkerQueue <- worker
+		m.WorkerReadyQueue <- worker
 	}()
 
 	m.addWorkerToPool(worker)
@@ -80,11 +80,11 @@ func (m *Master) Schedule(task Task) {
 
 	for {
 		select {
-		case worker := <-m.WorkerQueue: // pick a worker from queue
+		case worker := <-m.WorkerReadyQueue: // pick a worker from ready queue
 			worker.Task <- task                 // send task to worker
 			atomic.AddUint64(&m.Counts, 1)      // task counts
 			if worker.Status() != workerPanic { // let worker back if the worker finish job correctly(without panic)
-				go func() { m.WorkerQueue <- worker }()
+				go func() { m.WorkerReadyQueue <- worker }()
 				return
 			}
 			return
