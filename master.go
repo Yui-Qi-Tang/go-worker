@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strconv"
 	"sync"
-	"sync/atomic"
 )
 
 // the length of pool needs to be read automatically
@@ -18,16 +17,14 @@ type Master struct {
 	stopRecvWorkerEvent chan interface{}
 	WorkerReadyQueue    chan *Worker
 	Quit                chan bool
-	Counts              uint64
 }
 
 // PoolSize default 100
 // You can modify the value if any
 var PoolSize uint = 100
 
-const maxUint = ^uint(0)
+// const maxUint = ^uint(0)
 const maxPoolSize uint = 1 << 32
-const maxJobCount uint = maxUint
 
 // NewMaster returns 'Master' instance
 func NewMaster() (*Master, error) {
@@ -41,7 +38,6 @@ func NewMaster() (*Master, error) {
 		stopRecvWorkerEvent: make(chan interface{}),
 		Quit:                make(chan bool),
 		WorkerReadyQueue:    make(chan *Worker),
-		Counts:              0,
 	}
 
 	go master.RecvWorkerEvent()
@@ -82,7 +78,6 @@ func (m *Master) Schedule(task Task) {
 		select {
 		case worker := <-m.WorkerReadyQueue: // pick a worker from ready queue
 			worker.Task <- task                 // send task to worker
-			atomic.AddUint64(&m.Counts, 1)      // task counts
 			if worker.Status() != workerPanic { // let worker back if the worker finish job correctly(without panic)
 				go func() { m.WorkerReadyQueue <- worker }()
 				return
@@ -118,12 +113,6 @@ func (m *Master) GetPoolSize() int {
 	m.RLock()
 	defer m.RUnlock()
 	return cap(m.Pool)
-}
-
-// GetJobCounts returns counts of job
-func (m *Master) GetJobCounts() uint64 {
-	atomic.LoadUint64(&m.Counts)
-	return atomic.LoadUint64(&m.Counts)
 }
 
 // RecvWorkerEvent receives event from worker

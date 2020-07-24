@@ -141,14 +141,6 @@ func TestSchedule(t *testing.T) {
 		master.Schedule(task)
 	}
 
-	for master.GetJobCounts() != uint64(len(tasks)) {
-
-		// wait for count arrive taskNum
-		if master.GetJobCounts() > uint64(len(tasks)) {
-			t.Fatal("expected:", len(tasks), "but got", master.GetJobCounts())
-		}
-	}
-
 	master.Stop()
 
 	t.Log("passed")
@@ -196,14 +188,6 @@ func TestMasterWithSimpleTask(t *testing.T) {
 
 	for _, task := range tasks {
 		master.Dispatch(task)
-	}
-
-	for master.GetJobCounts() != uint64(len(tasks)) {
-
-		// wait for count arrive taskNum
-		if master.GetJobCounts() > uint64(len(tasks)) {
-			t.Fatal("expected:", len(tasks), "but got", master.GetJobCounts())
-		}
 	}
 
 	master.Stop()
