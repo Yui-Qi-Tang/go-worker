@@ -55,19 +55,16 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return errors.New("invalid worker")
 	}
 	if uint(len(m.Pool)) > PoolSize {
-		worker.Stop()
 		return errors.New("exceed max pool size")
 	}
 
-	worker.Recovery = m.workerPanic
+	worker.Recovery = m.workerPanic // pass recovery chan to worker
 	worker.Start()
 	go func() {
 		m.WorkerQueue <- worker
 	}()
 
-	m.Lock()
-	m.Pool = append(m.Pool, worker)
-	m.Unlock()
+	m.addWorkerToPool(worker)
 	return nil
 }
 
@@ -83,10 +80,10 @@ func (m *Master) Schedule(task Task) {
 
 	for {
 		select {
-		case worker := <-m.WorkerQueue: // pick worker from queue
-			worker.Task <- task
-			atomic.AddUint64(&m.Counts, 1)
-			if worker.Status() != workerPanic { // let worker back if the worker with no panic
+		case worker := <-m.WorkerQueue: // pick a worker from queue
+			worker.Task <- task                 // send task to worker
+			atomic.AddUint64(&m.Counts, 1)      // task counts
+			if worker.Status() != workerPanic { // let worker back if the worker finish job correctly(without panic)
 				go func() { m.WorkerQueue <- worker }()
 				return
 			}
@@ -136,12 +133,7 @@ func (m *Master) RecvWorkerEvent() {
 		case v := <-m.workerPanic:
 			for i, worker := range m.Pool {
 				if worker.Name == v {
-
-					// update pool: remove panic g and add new g
-					m.Lock()
-					m.Pool = append(m.Pool[:i], m.Pool[i+1:]...) // delete painc routine from pool
-					m.Unlock()
-
+					m.removeWorkerFromPool(i)
 					worker, _ := NewWorker()
 					m.AddWorker(worker)
 					break
@@ -151,4 +143,18 @@ func (m *Master) RecvWorkerEvent() {
 			return
 		}
 	}
+}
+
+// remove removes worker(with panic or it feels bad) from pool
+func (m *Master) removeWorkerFromPool(pos int) {
+	m.Lock()
+	m.Pool = append(m.Pool[:pos], m.Pool[pos+1:]...)
+	m.Unlock()
+}
+
+// remove removes worker(with panic or it feels bad) from pool
+func (m *Master) addWorkerToPool(worker *Worker) {
+	m.Lock()
+	m.Pool = append(m.Pool, worker)
+	m.Unlock()
 }
