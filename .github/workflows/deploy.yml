@@ -9,7 +9,7 @@ jobs:
       matrix:
         platform: [ubuntu-latest]
     runs-on: ${{ matrix.platform }}
-    container: golang:1.14.6
+    container: golang:1.14.7
     steps:
 
       - name: Check out code
