@@ -9,7 +9,7 @@ import (
 // Master manages worker
 type Master struct {
 	sync.RWMutex
-	Pool []*Worker
+	Pool []*Worker // memo: save worker here, can we re-run the stopped worker?
 
 	workerPanic         chan string
 	stopRecoveryRoutine chan interface{}
@@ -32,22 +32,17 @@ const maxPoolSize uint = 1 << 8
 // MasterOption is an option function form for master
 type MasterOption func(m *Master)
 
-// WithPoolSize creates pool for worker with size
-func WithPoolSize(size uint) MasterOption {
-	return func(m *Master) {
-		m.Pool = make([]*Worker, 0, size)
-	}
-}
-
 // WithWorkerRecovery starts a routine for killing panic worker & re-create a new worker
-func WithWorkerRecovery(recovery bool) MasterOption {
+func WithWorkerRecovery(enanle bool) MasterOption {
 	return func(m *Master) {
-		m.workerPanic = make(chan string)
-		m.stopRecoveryRoutine = make(chan interface{})
+		if enanle {
+			m.workerPanic = make(chan string)
+			m.stopRecoveryRoutine = make(chan interface{})
 
-		m.workerPanic = make(chan string)
+			m.workerPanic = make(chan string)
 
-		go m.RecoveryWorker()
+			go m.RecoveryWorker()
+		}
 	}
 }
 
@@ -63,14 +58,11 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 	master := &Master{
 		Quit:        make(chan bool),
 		WorkerQueue: make(chan *Worker),
+		Pool:        make([]*Worker, 0),
 	}
 
 	for _, opt := range opts {
 		opt(master)
-	}
-
-	if uint(len(master.Pool)) > maxPoolSize {
-		return nil, ErrMasterSetupWithTooLargePoolSize
 	}
 
 	return master, nil
@@ -87,7 +79,7 @@ func (m *Master) AddWorker(worker *Worker) error {
 	}
 
 	// attach worker to master recovery chan
-	if worker.Recovery != nil {
+	if worker.Recovery != nil && m.workerPanic != nil {
 		worker.Recovery = m.workerPanic
 	}
 
@@ -100,6 +92,22 @@ func (m *Master) AddWorker(worker *Worker) error {
 	m.Lock()
 	m.Pool = append(m.Pool, worker)
 	m.Unlock()
+	return nil
+}
+
+// AddWorkers creates number of workers with counts; HINT: the workers support recovery
+func (m *Master) AddWorkers(counts int) error {
+	for i := 0; i < counts; i++ {
+		w, err := NewWorker(WithRecovery(true))
+		if err != nil {
+			return err
+		}
+
+		if err := m.AddWorker(w); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
