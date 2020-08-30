@@ -1,7 +1,11 @@
+// Package worker provides creating worker with consistency task interface for your job.
+// And we also provide a master to manage the workers of this package and support worker failed recovery.
 package worker
 
 import (
 	"sync"
+
+	"github.com/pkg/errors"
 
 	guuid "github.com/google/uuid"
 	"go.uber.org/zap"
@@ -22,30 +26,16 @@ const (
 	workerPanic string = "panic"
 )
 
-// NewWorker returns worker
-func NewWorker() (*Worker, error) {
-
-	id := guuid.New()
-
-	config := zap.NewProductionConfig()
-	config.Encoding = "console"
-	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	logger, newErr := config.Build()
-	if newErr != nil {
-		return nil, newErr
-	}
-
-	w := &Worker{
-		Name:     id.String(),
-		Quit:     make(chan interface{}),
-		Task:     make(chan Task),
-		Recovery: make(chan string),
-		logger:   logger,
-		status:   make(chan string),
-	}
-
-	return w, nil
-}
+var (
+	// ErrWorkerTaskInit is denoted the worker processes job but get error in Init phase
+	ErrWorkerTaskInit error = errors.New("worker got error from executing job in Init phase")
+	// ErrWorkerTaskRun is denoted the worker processes job but get error in Run phase
+	ErrWorkerTaskRun error = errors.New("worker got error from executing job in Run phase")
+	// ErrWorkerTaskDone is denoted the worker process job but get error in Done phase
+	ErrWorkerTaskDone error = errors.New("worker got error from executing job in Done phase")
+	// ErrWorkerPanic is denoted the worker got panic error from executing job or itself.
+	ErrWorkerPanic error = errors.New("worker got panic")
+)
 
 // Worker is the structure for worker
 type Worker struct {
@@ -55,10 +45,65 @@ type Worker struct {
 
 	logger *zap.Logger
 
+	// Recovery TODO: use a special type for this channel, it's between master and worker
 	Recovery chan string
 	Quit     chan interface{}
 
 	status chan string
+}
+
+// Option is a functional option for worker setup
+type Option func(w *Worker)
+
+// WithName is setup worker name
+func WithName(name string) Option {
+	return func(w *Worker) {
+		w.Name = name
+	}
+}
+
+// WithRecovery sets recovery chan for upstream
+// if no upstream exists, don't create worker with this option
+func WithRecovery(ok bool) Option {
+	return func(w *Worker) {
+		if ok {
+			w.Recovery = make(chan string)
+		}
+	}
+}
+
+// NewWorker returns worker
+func NewWorker(opts ...Option) (*Worker, error) {
+
+	w := &Worker{
+		Quit:   make(chan interface{}),
+		Task:   make(chan Task),
+		status: make(chan string),
+	}
+
+	uuid := guuid.New()
+	name := uuid.String()
+	if len(name) == 0 {
+		return nil, errors.New("new worker error: invalid uuid(len==0)")
+	}
+
+	w.Name = name // default name
+
+	config := zap.NewProductionConfig()
+	config.Encoding = "console"
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	logger, err := config.Build()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create logger for worker")
+	}
+
+	w.logger = logger
+
+	for _, opt := range opts {
+		opt(w)
+	}
+
+	return w, nil
 }
 
 // Start waits the work...
@@ -68,13 +113,19 @@ func (w *Worker) Start() {
 		defer func() {
 			if err := recover(); err != nil {
 				w.status <- workerPanic
-				w.Recovery <- w.Name
+
+				if w.Recovery != nil {
+					w.Recovery <- w.Name
+				}
+
 				w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", err))
 				w.logger.Sync()
 				return
 			}
 		}()
+
 		w.logger.Info(workerEventStart, zap.String("worker", w.Name))
+
 		for {
 			select {
 			case <-w.Quit:
@@ -87,6 +138,7 @@ func (w *Worker) Start() {
 					zap.String("worker", w.Name),
 					zap.String("task_name", task.ID()),
 				)
+
 				if err := task.Init(); err != nil {
 					w.logger.Error(
 						workerErrInit,
@@ -108,6 +160,7 @@ func (w *Worker) Start() {
 					w.status <- workerErrRun
 					break
 				}
+
 				if err := task.Done(); err != nil {
 					w.logger.Error(
 						workerErrDone,
@@ -118,13 +171,13 @@ func (w *Worker) Start() {
 					w.status <- workerErrDone
 					break
 				}
+
 				w.logger.Info(
 					workerEventDone,
 					zap.String("worker", w.Name),
-					zap.String("task_name", task.ID()),
+					zap.String("task_id", task.ID()),
 				)
 				w.status <- workerEventDone
-
 			}
 		}
 
@@ -136,8 +189,20 @@ func (w *Worker) Stop() {
 	close(w.Quit)
 }
 
-// Status returns status of worker
-func (w *Worker) Status() string {
+// waitStatus returns status of worker
+func (w *Worker) waitStatus() string {
 	s := <-w.status
 	return s
+}
+
+// Do processes task; error if panic
+func (w *Worker) Do(task Task) error {
+	go func() {
+		w.Task <- task
+	}()
+
+	if w.waitStatus() == workerPanic {
+		return ErrWorkerPanic
+	}
+	return nil
 }
