@@ -3,8 +3,6 @@ package worker
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"testing"
@@ -252,11 +250,4 @@ func dumpMemInfo(t *testing.T) {
 	t.Logf("HeapAlloc: %d MB, HeapSys: %d MB, HeapIdle: %d MB\n",
 		ms.HeapAlloc/1024/1024, ms.HeapSys/1024/1024, ms.HeapIdle/1024/1024)
 	t.Logf("HeapObjects: %d\n", ms.HeapObjects)
-}
-
-func cleanFile(file string) {
-	files, _ := filepath.Glob(file) // log file in current folfer
-	for _, fileName := range files {
-		os.Remove(fileName)
-	}
 }
