@@ -38,15 +38,22 @@ func TestAtomicType(t *testing.T) {
 
 	var taskCounts = 1000
 
-	const workers = 10
+	const workers = 20
 
-	ms, err := NewMaster(WithWorkerRecovery(true))
+	ms, err := NewMaster(WithConcurrency(3))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if err := ms.AddWorkers(workers); err != nil {
 		t.Fatal(err)
+	}
+
+	if err := ms.WakeAllWorkersUp(); err != nil {
+		if err == ErrMasterWorkerPoolIsEmpty {
+			t.Fatal(err)
+		}
+		panic(err) // unexcepted error
 	}
 
 	if ms.GetWorkers() != workers {
@@ -78,6 +85,13 @@ func TestMasterWithNormalTask(t *testing.T) {
 
 	if err := ms.AddWorkers(workerNums); err != nil {
 		t.Fatal(err)
+	}
+
+	if err := ms.WakeAllWorkersUp(); err != nil {
+		if err == ErrMasterWorkerPoolIsEmpty {
+			t.Fatal(err)
+		}
+		panic(err) // unexcepted error
 	}
 
 	if ms.GetWorkers() != workerNums {

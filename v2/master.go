@@ -25,6 +25,8 @@ var (
 	ErrMasterAddNilWorker error = errors.New("worker can not be nil")
 	// ErrMasterWorkerPoolIsFull is denote the pool size of Master is full
 	ErrMasterWorkerPoolIsFull error = errors.New("pool of Master is full")
+	// ErrMasterWorkerPoolIsEmpty denotes the pool is empty
+	ErrMasterWorkerPoolIsEmpty error = errors.New("pool is empty")
 )
 
 const maxPoolSize uint = 1 << 8
@@ -57,7 +59,7 @@ func WithConcurrency(concurrency int) MasterOption {
 func NewMaster(opts ...MasterOption) (*Master, error) {
 	master := &Master{
 		Quit:        make(chan bool),
-		WorkerQueue: make(chan *Worker),
+		WorkerQueue: make(chan *Worker), // defaut: unbuffered chan
 		Pool:        make([]*Worker, 0),
 	}
 
@@ -68,7 +70,7 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 	return master, nil
 }
 
-// AddWorker adds worker to pool and start it
+// AddWorker adds worker to pool
 func (m *Master) AddWorker(worker *Worker) error {
 	if worker == nil {
 		return ErrMasterAddNilWorker
@@ -83,8 +85,7 @@ func (m *Master) AddWorker(worker *Worker) error {
 		worker.Recovery = m.workerPanic
 	}
 
-	worker.Start()
-
+	// assign worker to queue
 	go func() {
 		m.WorkerQueue <- worker
 	}()
@@ -130,6 +131,7 @@ func (m *Master) Schedule(task Task) {
 				go func() { m.WorkerQueue <- worker }()
 				return
 			}
+			// drop the task, becasue the task makes the worker painc
 			return
 		case <-m.Quit:
 			return
@@ -167,6 +169,23 @@ func (m *Master) GetPoolSize() int {
 	m.RLock()
 	defer m.RUnlock()
 	return cap(m.Pool)
+}
+
+// WakeAllWorkersUp weaks all of workers in the pool up
+func (m *Master) WakeAllWorkersUp() error {
+
+	m.Lock()
+	defer m.Unlock()
+
+	if len(m.Pool) == 0 {
+		return ErrMasterWorkerPoolIsEmpty
+	}
+
+	for _, w := range m.Pool {
+		w.Start()
+	}
+
+	return nil
 }
 
 // RecoveryWorker re-creates a new worker when receives worker panic
