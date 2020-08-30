@@ -48,12 +48,12 @@ func WithWorkerRecovery(enanle bool) MasterOption {
 	}
 }
 
-// WithConcurrency allows number of workers can
-func WithConcurrency(concurrency int) MasterOption {
-	return func(m *Master) {
-		m.WorkerQueue = make(chan *Worker, concurrency)
-	}
-}
+// WithConcurrency allows number of workers take task simultaneously
+// func WithConcurrency(concurrency int) MasterOption {
+// 	return func(m *Master) {
+// 		m.WorkerQueue = make(chan *Worker, concurrency)
+// 	}
+// }
 
 // NewMaster returns 'Master' instance
 func NewMaster(opts ...MasterOption) (*Master, error) {

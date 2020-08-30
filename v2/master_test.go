@@ -40,7 +40,7 @@ func TestAtomicType(t *testing.T) {
 
 	const workers = 20
 
-	ms, err := NewMaster(WithConcurrency(3))
+	ms, err := NewMaster()
 	if err != nil {
 		t.Fatal(err)
 	}
