@@ -45,11 +45,11 @@ type Worker struct {
 
 	logger *zap.Logger
 
-	// Recovery TODO: use a special type for this channel, it's between master and worker
-	Recovery chan string
-	Quit     chan interface{}
+	msgChan chan message
+	Quit    chan interface{}
+	isPanic chan bool
 
-	status chan string
+	// status chan string
 }
 
 // Option is a functional option for worker setup
@@ -62,23 +62,14 @@ func WithName(name string) Option {
 	}
 }
 
-// WithRecovery sets recovery chan for upstream
-// if no upstream exists, don't create worker with this option
-func WithRecovery(ok bool) Option {
-	return func(w *Worker) {
-		if ok {
-			w.Recovery = make(chan string)
-		}
-	}
-}
-
 // NewWorker returns worker
 func NewWorker(opts ...Option) (*Worker, error) {
 
 	w := &Worker{
-		Quit:   make(chan interface{}),
-		Task:   make(chan Task),
-		status: make(chan string),
+		Quit:    make(chan interface{}),
+		Task:    make(chan Task),
+		msgChan: make(chan message),
+		isPanic: make(chan bool),
 	}
 
 	uuid := guuid.New()
@@ -112,11 +103,7 @@ func (w *Worker) Start() {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				w.status <- workerPanic
-
-				if w.Recovery != nil {
-					w.Recovery <- w.Name
-				}
+				w.sendErr(ErrWorkerPanic)
 
 				w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", err))
 				w.logger.Sync()
@@ -146,7 +133,7 @@ func (w *Worker) Start() {
 						zap.String("task_name", task.ID()),
 						zap.Any("reason", err),
 					)
-					w.status <- workerErrInit
+					w.sendErr(ErrWorkerTaskInit)
 					break
 				}
 
@@ -157,7 +144,7 @@ func (w *Worker) Start() {
 						zap.String("task_name", task.ID()),
 						zap.Any("reason", err),
 					)
-					w.status <- workerErrRun
+					w.sendErr(ErrWorkerTaskRun)
 					break
 				}
 
@@ -168,7 +155,7 @@ func (w *Worker) Start() {
 						zap.String("task_name", task.ID()),
 						zap.Any("reason", err),
 					)
-					w.status <- workerErrDone
+					w.sendErr(ErrWorkerTaskDone)
 					break
 				}
 
@@ -177,7 +164,7 @@ func (w *Worker) Start() {
 					zap.String("worker", w.Name),
 					zap.String("task_id", task.ID()),
 				)
-				w.status <- workerEventDone
+				w.sendErr(nil)
 			}
 		}
 
@@ -186,13 +173,22 @@ func (w *Worker) Start() {
 
 // Stop terminates worker
 func (w *Worker) Stop() {
+	close(w.msgChan)
 	close(w.Quit)
 }
 
 // waitStatus returns status of worker
-func (w *Worker) waitStatus() string {
-	s := <-w.status
-	return s
+// func (w *Worker) waitStatus() string {
+// 	// s := <-w.status
+// 	return "123"
+// }
+
+func (w *Worker) waitErr() error {
+	msg := <-w.msgChan
+	if msg.err != nil {
+		return msg.err
+	}
+	return nil
 }
 
 // Do processes task; error if panic
@@ -201,8 +197,11 @@ func (w *Worker) Do(task Task) error {
 		w.Task <- task
 	}()
 
-	if w.waitStatus() == workerPanic {
-		return ErrWorkerPanic
+	return w.waitErr()
+}
+
+func (w *Worker) sendErr(err error) {
+	if w.msgChan != nil {
+		w.msgChan <- message{workerName: w.Name, err: err}
 	}
-	return nil
 }

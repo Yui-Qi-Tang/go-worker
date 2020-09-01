@@ -9,9 +9,9 @@ import (
 // Master manages worker
 type Master struct {
 	sync.RWMutex
-	Pool []*Worker // memo: save worker here, can we re-run the stopped worker?
+	Pool []*Worker
 
-	workerPanic         chan string
+	workerMsg           chan message
 	stopRecoveryRoutine chan interface{}
 
 	WorkerQueue chan *Worker
@@ -38,10 +38,9 @@ type MasterOption func(m *Master)
 func WithWorkerRecovery(enanle bool) MasterOption {
 	return func(m *Master) {
 		if enanle {
-			m.workerPanic = make(chan string)
-			m.stopRecoveryRoutine = make(chan interface{})
+			m.workerMsg = make(chan message)
 
-			m.workerPanic = make(chan string)
+			m.stopRecoveryRoutine = make(chan interface{})
 
 			go m.RecoveryWorker()
 		}
@@ -81,8 +80,8 @@ func (m *Master) AddWorker(worker *Worker) error {
 	}
 
 	// attach worker to master recovery chan
-	if worker.Recovery != nil && m.workerPanic != nil {
-		worker.Recovery = m.workerPanic
+	if worker.msgChan != nil && m.workerMsg != nil {
+		worker.msgChan = m.workerMsg
 	}
 
 	// assign worker to queue
@@ -99,7 +98,7 @@ func (m *Master) AddWorker(worker *Worker) error {
 // AddWorkers creates number of workers with counts; HINT: the workers support recovery
 func (m *Master) AddWorkers(counts int) error {
 	for i := 0; i < counts; i++ {
-		w, err := NewWorker(WithRecovery(true))
+		w, err := NewWorker()
 		if err != nil {
 			return err
 		}
@@ -125,13 +124,13 @@ func (m *Master) Schedule(task Task) {
 	for {
 		select {
 		case worker := <-m.WorkerQueue: // pick a worker from queue
-			worker.Task <- task // worker waits for task
+			worker.Task <- task // send task to worker
 
-			if worker.waitStatus() != workerPanic { // let worker back if the worker with no panic
-				go func() { m.WorkerQueue <- worker }()
+			if err := worker.waitErr(); err != ErrWorkerPanic { // let worker back if the worker with no panic
+				go func() { m.WorkerQueue <- worker }() // worker goes back to queue
 				return
 			}
-			// drop the task, becasue the task makes the worker painc
+			// drop the worker, becasue the task makes the worker panic
 			return
 		case <-m.Quit:
 			return
@@ -192,9 +191,9 @@ func (m *Master) WakeAllWorkersUp() error {
 func (m *Master) RecoveryWorker() {
 	for {
 		select {
-		case v := <-m.workerPanic:
+		case v := <-m.workerMsg:
 			for i, worker := range m.Pool {
-				if worker.Name == v {
+				if worker.Name == v.workerName {
 
 					// update pool: remove panic g and add new g
 					m.Lock()
@@ -203,6 +202,7 @@ func (m *Master) RecoveryWorker() {
 
 					worker, _ := NewWorker()
 					m.AddWorker(worker)
+					worker.Start()
 					break
 				}
 			}
@@ -210,4 +210,8 @@ func (m *Master) RecoveryWorker() {
 			return
 		}
 	}
+}
+
+func (m *Master) workerRecovery() {
+
 }
