@@ -78,7 +78,7 @@ func TestMasterWithNormalTask(t *testing.T) {
 	const workerNums = 10
 	const taskConuts = 1000
 
-	ms, err := NewMaster(WithWorkerRecovery(true))
+	ms, err := NewMaster(WithWorkerRecovery(true), WithEnableWorkerLogger(Fatal))
 	if err != nil {
 		t.Fatal(err)
 	}

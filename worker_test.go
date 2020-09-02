@@ -63,15 +63,15 @@ func TestLowLevelWorker(t *testing.T) {
 	}{
 		{
 			task:   normal,
-			answer: workerEventDone,
+			answer: taskDone.String(),
 		},
 		{
 			task:   normalErr,
-			answer: workerErrInit,
+			answer: taskInitErr.String(),
 		},
 		{
 			task:   panicerr,
-			answer: workerPanic,
+			answer: taskPanicErr.String(),
 		},
 	}
 

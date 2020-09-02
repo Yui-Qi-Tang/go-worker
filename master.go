@@ -16,6 +16,8 @@ type Master struct {
 
 	WorkerQueue chan *Worker
 	Quit        chan bool
+
+	WorkerLogLv LogLevel
 }
 
 var (
@@ -38,21 +40,18 @@ type MasterOption func(m *Master)
 func WithWorkerRecovery(enanle bool) MasterOption {
 	return func(m *Master) {
 		if enanle {
-			//m.workerMsg = make(chan message)
-
 			m.stopRecoveryRoutine = make(chan interface{})
-
 			go m.RecoveryWorker()
 		}
 	}
 }
 
-// WithConcurrency allows number of workers take task simultaneously
-// func WithConcurrency(concurrency int) MasterOption {
-// 	return func(m *Master) {
-// 		m.WorkerQueue = make(chan *Worker, concurrency)
-// 	}
-// }
+// WithEnableWorkerLogger setup log level for worker
+func WithEnableWorkerLogger(lv LogLevel) MasterOption {
+	return func(m *Master) {
+		m.WorkerLogLv = lv
+	}
+}
 
 // NewMaster returns 'Master' instance
 func NewMaster(opts ...MasterOption) (*Master, error) {
@@ -60,6 +59,7 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 		Quit:        make(chan bool),
 		WorkerQueue: make(chan *Worker), // defaut: unbuffered chan
 		Pool:        make([]*Worker, 0),
+		WorkerLogLv: None,
 	}
 
 	for _, opt := range opts {
@@ -93,7 +93,7 @@ func (m *Master) AddWorker(worker *Worker) error {
 // AddWorkers creates number of workers with counts; HINT: the workers support recovery
 func (m *Master) AddWorkers(counts int) error {
 	for i := 0; i < counts; i++ {
-		w, err := NewWorker()
+		w, err := NewWorker(WithLogger(m.WorkerLogLv))
 		if err != nil {
 			return err
 		}
@@ -189,11 +189,7 @@ func (m *Master) RecoveryWorker() {
 		for i, worker := range m.Pool {
 			if worker.status.load() == taskPanicErr {
 				// update pool: remove panic g and add new g
-				//m.Lock()
 				m.Pool = append(m.Pool[:i], m.Pool[i+1:]...) // delete painc routine from pool
-				//m.Unlock()
-
-				m.Stop()
 
 				worker, _ := NewWorker()
 				m.AddWorker(worker)
@@ -201,6 +197,8 @@ func (m *Master) RecoveryWorker() {
 			}
 		}
 		m.Unlock()
+
+		// todo: use atomic varialbe to handle leave...
 		select {
 
 		case <-m.stopRecoveryRoutine:

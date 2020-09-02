@@ -15,6 +15,20 @@ import (
 
 type workerStatus int32
 
+// LogLevel level of logger
+type LogLevel int32
+
+const (
+	// None no logging
+	None LogLevel = iota
+	// Info diplays logging  message with level 'info'
+	Info
+	// Debug diplays logging message with level 'Debug' and contains the log under this level
+	Debug
+	// Fatal diplays logging message with level 'Fatal' and contains the log under this level
+	Fatal
+)
+
 const (
 	ready workerStatus = iota // for init phases
 	running
@@ -56,20 +70,6 @@ func (ws workerStatus) String() string {
 	}[atomic.LoadInt32((*int32)(&ws))]
 }
 
-const (
-	// normal events
-	workerEventStart    string = "starting"
-	workerEventDone     string = "done"
-	workerEventReceived string = "received-task"
-	workerEventQuit     string = "quit"
-	// error
-	workerErrInit string = "error-init"
-	workerErrRun  string = "error-run"
-	workerErrDone string = "error-done"
-	// panic
-	workerPanic string = "panic"
-)
-
 var (
 	// ErrWorkerTaskInit is denoted the worker processes job but get error in Init phase
 	ErrWorkerTaskInit error = errors.New("worker got error from executing job in Init phase")
@@ -94,8 +94,7 @@ type Worker struct {
 
 	logger *zap.Logger
 
-	//Upstream chan message
-	// Quit     chan interface{}
+	LogLevel LogLevel
 
 	callRecovery bool
 }
@@ -116,6 +115,19 @@ func withRecovery() Option {
 	}
 }
 
+// WithLogger setup logger with level
+func WithLogger(lv LogLevel) Option {
+	return func(w *Worker) {
+		config := zap.NewProductionConfig()
+		config.Encoding = "console"
+		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		logger, _ := config.Build()
+		w.logger = logger
+
+		w.LogLevel = lv // set logging level
+	}
+}
+
 // NewWorker returns worker
 func NewWorker(opts ...Option) (*Worker, error) {
 
@@ -125,6 +137,7 @@ func NewWorker(opts ...Option) (*Worker, error) {
 		//Upstream:     make(chan message),
 		callRecovery: false,
 		status:       ready,
+		LogLevel:     None,
 	}
 
 	uuid := guuid.New()
@@ -134,16 +147,6 @@ func NewWorker(opts ...Option) (*Worker, error) {
 	}
 
 	w.Name = name // default name
-
-	config := zap.NewProductionConfig()
-	config.Encoding = "console"
-	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	logger, err := config.Build()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create logger for worker")
-	}
-
-	w.logger = logger
 
 	for _, opt := range opts {
 		opt(w)
@@ -156,81 +159,47 @@ func NewWorker(opts ...Option) (*Worker, error) {
 // HINT: it's goroutine!
 func (w *Worker) Start() {
 	w.status.update(running)
+	w.logInfo("", running.String())
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-
 				w.status.update(taskPanicErr)
-				//w.sendUpstream(ErrWorkerPanic)
-
-				w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", err))
-				w.logger.Sync()
+				w.logFatal(taskPanicErr.String(), err.(error))
 				return
 			}
 		}()
 
-		w.logger.Info(workerEventStart, zap.String("worker", w.Name))
-
 		for {
 			if w.status.load() == quit {
-				w.logger.Info(workerEventQuit, zap.String("worker", w.Name))
+				w.logInfo("", quit.String())
 				w.logger.Sync()
 				return
 			}
 			select {
 			case task := <-w.Task:
 				w.status.update(taskReceived)
-
-				w.logger.Info(
-					workerEventReceived,
-					zap.String("worker", w.Name),
-					zap.String("task_name", task.ID()),
-				)
+				w.logInfo(task.ID(), w.status.load().String())
 
 				if err := task.Init(); err != nil {
-					w.logger.Error(
-						workerErrInit,
-						zap.String("worker", w.Name),
-						zap.String("task_name", task.ID()),
-						zap.Any("reason", err),
-					)
 					w.status.update(taskInitErr)
-					//w.sendUpstream(ErrWorkerTaskInit)
+					w.logDebug(task.ID(), taskInitErr.String(), err)
 					break
 				}
 
 				if err := task.Run(); err != nil {
-					w.logger.Error(
-						workerErrRun,
-						zap.String("worker", w.Name),
-						zap.String("task_name", task.ID()),
-						zap.Any("reason", err),
-					)
 					w.status.update(taskRunErr)
-					//w.sendUpstream(ErrWorkerTaskRun)
+					w.logDebug(task.ID(), taskRunErr.String(), err)
 					break
 				}
 
 				if err := task.Done(); err != nil {
-					w.logger.Error(
-						workerErrDone,
-						zap.String("worker", w.Name),
-						zap.String("task_name", task.ID()),
-						zap.Any("reason", err),
-					)
 					w.status.update(taskDoneErr)
-					//w.sendUpstream(ErrWorkerTaskDone)
+					w.logDebug(task.ID(), taskDoneErr.String(), err)
 					break
 				}
 
-				w.logger.Info(
-					workerEventDone,
-					zap.String("worker", w.Name),
-					zap.String("task_id", task.ID()),
-				)
-
 				w.status.update(taskDone)
-				//w.sendUpstream(nil)
+				w.logInfo("", taskDone.String())
 			}
 		}
 
@@ -240,10 +209,6 @@ func (w *Worker) Start() {
 // Stop terminates worker
 func (w *Worker) Stop() {
 	w.status.update(quit)
-	// if w.Upstream != nil {
-	// 	close(w.Upstream)
-	// }
-	// close(w.Quit)
 }
 
 // Do processes task
@@ -253,8 +218,33 @@ func (w *Worker) Do(task Task) {
 	}()
 }
 
-// func (w *Worker) sendUpstream(err error) {
-// 	if w.Upstream != nil {
-// 		w.Upstream <- message{workerName: w.Name, err: err}
-// 	}
-// }
+func (w *Worker) logDebug(taskID, msg string, err error) {
+	if w.logger != nil && w.LogLevel >= Debug {
+		w.logger.Error(
+			err.Error(),
+			zap.String("worker", w.Name),
+			zap.String("task_name", taskID),
+			zap.Any("reason", err),
+		)
+	}
+}
+
+func (w *Worker) logInfo(taskID string, info string) {
+	if w.logger != nil && w.LogLevel >= Info {
+		w.logger.Info(
+			info,
+			zap.String("worker", w.Name),
+			zap.String("task_name", taskID),
+		)
+	}
+}
+
+func (w *Worker) logFatal(msg string, err error) {
+	if w.logger != nil && w.LogLevel >= Fatal {
+		w.logger.Fatal(
+			err.Error(),
+			zap.String("worker", w.Name),
+			zap.Any("reason", err),
+		)
+	}
+}
