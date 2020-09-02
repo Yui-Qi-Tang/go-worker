@@ -4,6 +4,7 @@ package worker
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 
@@ -11,6 +12,49 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+type workerStatus int32
+
+const (
+	ready workerStatus = iota // for init phases
+	running
+	quit
+
+	taskReceived
+
+	taskDone
+
+	taskInitErr
+	taskRunErr
+	taskDoneErr
+	taskPanicErr
+)
+
+// load returns status
+func (ws *workerStatus) load() workerStatus {
+	return workerStatus(atomic.LoadInt32((*int32)(ws)))
+}
+
+// update status
+func (ws *workerStatus) update(s workerStatus) {
+	atomic.StoreInt32((*int32)(ws), (int32)(s))
+}
+
+func (ws workerStatus) String() string {
+	return [...]string{
+		"ready",
+		"starting",
+		"quit",
+
+		"received-task",
+		"done",
+
+		"error-init",
+		"error-run",
+		"error-done",
+		"panic-error",
+	}[atomic.LoadInt32((*int32)(&ws))]
+}
 
 const (
 	// normal events
@@ -35,6 +79,9 @@ var (
 	ErrWorkerTaskDone error = errors.New("worker got error from executing job in Done phase")
 	// ErrWorkerPanic is denoted the worker got panic error from executing job or itself.
 	ErrWorkerPanic error = errors.New("worker got panic")
+
+	// ErrWorkerWithNoUpstream
+	ErrWorkerWithNoUpstream = errors.New("this worker does not set upstream")
 )
 
 // Worker is the structure for worker
@@ -43,13 +90,14 @@ type Worker struct {
 	Task chan Task
 	Name string
 
+	status workerStatus
+
 	logger *zap.Logger
 
-	msgChan chan message
-	Quit    chan interface{}
-	isPanic chan bool
+	//Upstream chan message
+	// Quit     chan interface{}
 
-	// status chan string
+	callRecovery bool
 }
 
 // Option is a functional option for worker setup
@@ -62,14 +110,21 @@ func WithName(name string) Option {
 	}
 }
 
+func withRecovery() Option {
+	return func(w *Worker) {
+		w.callRecovery = true
+	}
+}
+
 // NewWorker returns worker
 func NewWorker(opts ...Option) (*Worker, error) {
 
 	w := &Worker{
-		Quit:    make(chan interface{}),
-		Task:    make(chan Task),
-		msgChan: make(chan message),
-		isPanic: make(chan bool),
+		//Quit:         make(chan interface{}),
+		Task: make(chan Task),
+		//Upstream:     make(chan message),
+		callRecovery: false,
+		status:       ready,
 	}
 
 	uuid := guuid.New()
@@ -100,10 +155,13 @@ func NewWorker(opts ...Option) (*Worker, error) {
 // Start waits the work...
 // HINT: it's goroutine!
 func (w *Worker) Start() {
+	w.status.update(running)
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				w.sendErr(ErrWorkerPanic)
+
+				w.status.update(taskPanicErr)
+				//w.sendUpstream(ErrWorkerPanic)
 
 				w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", err))
 				w.logger.Sync()
@@ -114,12 +172,15 @@ func (w *Worker) Start() {
 		w.logger.Info(workerEventStart, zap.String("worker", w.Name))
 
 		for {
-			select {
-			case <-w.Quit:
+			if w.status.load() == quit {
 				w.logger.Info(workerEventQuit, zap.String("worker", w.Name))
 				w.logger.Sync()
 				return
+			}
+			select {
 			case task := <-w.Task:
+				w.status.update(taskReceived)
+
 				w.logger.Info(
 					workerEventReceived,
 					zap.String("worker", w.Name),
@@ -133,7 +194,8 @@ func (w *Worker) Start() {
 						zap.String("task_name", task.ID()),
 						zap.Any("reason", err),
 					)
-					w.sendErr(ErrWorkerTaskInit)
+					w.status.update(taskInitErr)
+					//w.sendUpstream(ErrWorkerTaskInit)
 					break
 				}
 
@@ -144,7 +206,8 @@ func (w *Worker) Start() {
 						zap.String("task_name", task.ID()),
 						zap.Any("reason", err),
 					)
-					w.sendErr(ErrWorkerTaskRun)
+					w.status.update(taskRunErr)
+					//w.sendUpstream(ErrWorkerTaskRun)
 					break
 				}
 
@@ -155,7 +218,8 @@ func (w *Worker) Start() {
 						zap.String("task_name", task.ID()),
 						zap.Any("reason", err),
 					)
-					w.sendErr(ErrWorkerTaskDone)
+					w.status.update(taskDoneErr)
+					//w.sendUpstream(ErrWorkerTaskDone)
 					break
 				}
 
@@ -164,7 +228,9 @@ func (w *Worker) Start() {
 					zap.String("worker", w.Name),
 					zap.String("task_id", task.ID()),
 				)
-				w.sendErr(nil)
+
+				w.status.update(taskDone)
+				//w.sendUpstream(nil)
 			}
 		}
 
@@ -173,35 +239,22 @@ func (w *Worker) Start() {
 
 // Stop terminates worker
 func (w *Worker) Stop() {
-	close(w.msgChan)
-	close(w.Quit)
+	w.status.update(quit)
+	// if w.Upstream != nil {
+	// 	close(w.Upstream)
+	// }
+	// close(w.Quit)
 }
 
-// waitStatus returns status of worker
-// func (w *Worker) waitStatus() string {
-// 	// s := <-w.status
-// 	return "123"
-// }
-
-func (w *Worker) waitErr() error {
-	msg := <-w.msgChan
-	if msg.err != nil {
-		return msg.err
-	}
-	return nil
-}
-
-// Do processes task; error if panic
-func (w *Worker) Do(task Task) error {
+// Do processes task
+func (w *Worker) Do(task Task) {
 	go func() {
 		w.Task <- task
 	}()
-
-	return w.waitErr()
 }
 
-func (w *Worker) sendErr(err error) {
-	if w.msgChan != nil {
-		w.msgChan <- message{workerName: w.Name, err: err}
-	}
-}
+// func (w *Worker) sendUpstream(err error) {
+// 	if w.Upstream != nil {
+// 		w.Upstream <- message{workerName: w.Name, err: err}
+// 	}
+// }

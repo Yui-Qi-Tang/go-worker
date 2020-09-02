@@ -3,6 +3,7 @@ package worker
 import (
 	"errors"
 	"log"
+	"runtime"
 	"testing"
 )
 
@@ -11,7 +12,7 @@ type testTask int
 const (
 	normal testTask = iota
 	normalErr
-	panicErr
+	panicerr
 )
 
 func (tt testTask) String() string {
@@ -69,7 +70,7 @@ func TestLowLevelWorker(t *testing.T) {
 			answer: workerErrInit,
 		},
 		{
-			task:   panicErr,
+			task:   panicerr,
 			answer: workerPanic,
 		},
 	}
@@ -82,15 +83,9 @@ func TestLowLevelWorker(t *testing.T) {
 	worker.Start()
 
 	for _, testcase := range testcases {
-
 		go func(task testTask) {
 			worker.Task <- task
 		}(testcase.task)
-
-		// workerStatus := worker.waitStatus() // use low-level function
-		// if workerStatus != testcase.answer {
-		// 	t.Fatalf("wrong result :%s, expected: %s", workerStatus, testcase.answer)
-		// }
 	}
 
 	worker.Stop()
@@ -109,10 +104,10 @@ func TestWorkerForClient(t *testing.T) {
 		},
 		{
 			task:   normalErr,
-			answer: nil,
+			answer: ErrWorkerTaskInit,
 		},
 		{
-			task:   panicErr,
+			task:   panicerr,
 			answer: ErrWorkerPanic,
 		},
 	}
@@ -125,15 +120,38 @@ func TestWorkerForClient(t *testing.T) {
 	worker.Start()
 
 	for _, testcase := range testcases {
-
-		err := worker.Do(testcase.task)
-
-		if err != testcase.answer {
-			t.Fatalf("wrong result: %v, expected: %v", err, testcase.answer)
-		}
-
+		worker.Do(testcase.task)
 	}
 
 	worker.Stop()
+
+}
+
+func TestWorkerStatus(t *testing.T) {
+
+	worker, err := NewWorker()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if worker.status.load() != ready {
+		t.Fatal("worker does not state in 'ready'")
+	}
+
+	worker.Start()
+	if worker.status.load() != running {
+		t.Fatal("worker does not state in 'running'")
+	}
+
+	worker.Do(normal)
+
+	runtime.Gosched()
+
+	worker.Stop()
+
+	if worker.status.load() != quit {
+		t.Fatal("worker does not state in 'quit'", worker.status.load())
+	}
 
 }

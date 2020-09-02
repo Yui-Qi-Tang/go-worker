@@ -11,7 +11,7 @@ type Master struct {
 	sync.RWMutex
 	Pool []*Worker
 
-	workerMsg           chan message
+	//workerMsg           chan message
 	stopRecoveryRoutine chan interface{}
 
 	WorkerQueue chan *Worker
@@ -38,7 +38,7 @@ type MasterOption func(m *Master)
 func WithWorkerRecovery(enanle bool) MasterOption {
 	return func(m *Master) {
 		if enanle {
-			m.workerMsg = make(chan message)
+			//m.workerMsg = make(chan message)
 
 			m.stopRecoveryRoutine = make(chan interface{})
 
@@ -69,7 +69,7 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 	return master, nil
 }
 
-// AddWorker adds worker to pool
+// AddWorker adds worker to pool & queue
 func (m *Master) AddWorker(worker *Worker) error {
 	if worker == nil {
 		return ErrMasterAddNilWorker
@@ -77,11 +77,6 @@ func (m *Master) AddWorker(worker *Worker) error {
 
 	if uint(len(m.Pool)+1) > maxPoolSize {
 		return ErrMasterWorkerPoolIsFull
-	}
-
-	// attach worker to master recovery chan
-	if worker.msgChan != nil && m.workerMsg != nil {
-		worker.msgChan = m.workerMsg
 	}
 
 	// assign worker to queue
@@ -126,7 +121,7 @@ func (m *Master) Schedule(task Task) {
 		case worker := <-m.WorkerQueue: // pick a worker from queue
 			worker.Task <- task // send task to worker
 
-			if err := worker.waitErr(); err != ErrWorkerPanic { // let worker back if the worker with no panic
+			if worker.status.load() != taskPanicErr { // let worker back if the worker with no panic
 				go func() { m.WorkerQueue <- worker }() // worker goes back to queue
 				return
 			}
@@ -190,22 +185,24 @@ func (m *Master) WakeAllWorkersUp() error {
 // RecoveryWorker re-creates a new worker when receives worker panic
 func (m *Master) RecoveryWorker() {
 	for {
-		select {
-		case v := <-m.workerMsg:
-			for i, worker := range m.Pool {
-				if worker.Name == v.workerName {
+		m.Lock()
+		for i, worker := range m.Pool {
+			if worker.status.load() == taskPanicErr {
+				// update pool: remove panic g and add new g
+				//m.Lock()
+				m.Pool = append(m.Pool[:i], m.Pool[i+1:]...) // delete painc routine from pool
+				//m.Unlock()
 
-					// update pool: remove panic g and add new g
-					m.Lock()
-					m.Pool = append(m.Pool[:i], m.Pool[i+1:]...) // delete painc routine from pool
-					m.Unlock()
+				m.Stop()
 
-					worker, _ := NewWorker()
-					m.AddWorker(worker)
-					worker.Start()
-					break
-				}
+				worker, _ := NewWorker()
+				m.AddWorker(worker)
+				worker.Start()
 			}
+		}
+		m.Unlock()
+		select {
+
 		case <-m.stopRecoveryRoutine:
 			return
 		}
