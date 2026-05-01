@@ -201,8 +201,17 @@ func (w *Worker) Do(task Task) error {
 		w.Task <- task
 	}()
 
-	if w.waitStatus() == workerPanic {
+	status := w.waitStatus()
+	switch status {
+	case workerPanic:
 		return ErrWorkerPanic
+	case workerErrInit:
+		return ErrWorkerTaskInit
+	case workerErrRun:
+		return ErrWorkerTaskRun
+	case workerErrDone:
+		return ErrWorkerTaskDone
+	default:
+		return nil
 	}
-	return nil
 }
