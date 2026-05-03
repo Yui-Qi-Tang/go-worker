@@ -1,4 +1,6 @@
 name: worker test
+permissions:
+  contents: read
 on:
   push:
     branches:
@@ -11,11 +13,14 @@ jobs:
       matrix:
         platform: [ubuntu-latest]
     runs-on: ${{ matrix.platform }}
-    container: golang:1.14.7
+    container: golang:1.26.2
     steps:
 
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v6
+        with:
+          # avoid requiring a newer self-hosted runner for container auth
+          persist-credentials: false
 
       - name: test
         run: |

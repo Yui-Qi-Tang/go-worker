@@ -12,7 +12,7 @@ type Master struct {
 	Pool []*Worker // memo: save worker here, can we re-run the stopped worker?
 
 	workerPanic         chan string
-	stopRecoveryRoutine chan interface{}
+	stopRecoveryRoutine chan any
 
 	WorkerQueue chan *Worker
 	Quit        chan bool
@@ -39,7 +39,7 @@ func WithWorkerRecovery(enanle bool) MasterOption {
 	return func(m *Master) {
 		if enanle {
 			m.workerPanic = make(chan string)
-			m.stopRecoveryRoutine = make(chan interface{})
+			m.stopRecoveryRoutine = make(chan any)
 
 			m.workerPanic = make(chan string)
 
@@ -98,7 +98,7 @@ func (m *Master) AddWorker(worker *Worker) error {
 
 // AddWorkers creates number of workers with counts; HINT: the workers support recovery
 func (m *Master) AddWorkers(counts int) error {
-	for i := 0; i < counts; i++ {
+	for range counts {
 		w, err := NewWorker(WithRecovery(true))
 		if err != nil {
 			return err
@@ -201,8 +201,15 @@ func (m *Master) RecoveryWorker() {
 					m.Pool = append(m.Pool[:i], m.Pool[i+1:]...) // delete painc routine from pool
 					m.Unlock()
 
-					worker, _ := NewWorker()
-					m.AddWorker(worker)
+					replacement, err := NewWorker(WithRecovery(true))
+					if err != nil {
+						break
+					}
+
+					replacement.Start()
+					if err := m.AddWorker(replacement); err != nil {
+						replacement.Stop()
+					}
 					break
 				}
 			}
