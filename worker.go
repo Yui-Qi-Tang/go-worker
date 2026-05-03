@@ -47,7 +47,7 @@ type Worker struct {
 
 	// Recovery TODO: use a special type for this channel, it's between master and worker
 	Recovery chan string
-	Quit     chan interface{}
+	Quit     chan any
 
 	status chan string
 }
@@ -76,7 +76,7 @@ func WithRecovery(ok bool) Option {
 func NewWorker(opts ...Option) (*Worker, error) {
 
 	w := &Worker{
-		Quit:   make(chan interface{}),
+		Quit:   make(chan any),
 		Task:   make(chan Task),
 		status: make(chan string),
 	}
