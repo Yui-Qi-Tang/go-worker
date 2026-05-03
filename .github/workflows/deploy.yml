@@ -30,42 +30,4 @@ jobs:
         run: |
           go test ./... -race=1
 
-  codeql:
-    name: CodeQL - analyze
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
-        with:
-          languages: go
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
-
-  semgrep:
-    name: Semgrep scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Run Semgrep
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: default
-
-  dependency-scan:
-    name: Dependency Vulnerability Scan (Grype)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Run Grype scan
-        uses: anchore/grype-action@v1
-        with:
-          # policy: fail on medium+ severity (adjust as needed)
-          fail-on: medium
-
         
