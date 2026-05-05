@@ -201,8 +201,14 @@ func (m *Master) RecoveryWorker() {
 					m.Pool = append(m.Pool[:i], m.Pool[i+1:]...) // delete painc routine from pool
 					m.Unlock()
 
-					worker, _ := NewWorker()
-					m.AddWorker(worker)
+					worker, err := NewWorker(WithRecovery(true))
+					if err != nil {
+						break
+					}
+					if err := m.AddWorker(worker); err != nil {
+						break
+					}
+					worker.Start()
 					break
 				}
 			}
