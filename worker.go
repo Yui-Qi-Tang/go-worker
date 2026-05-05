@@ -37,6 +37,8 @@ var (
 	ErrWorkerPanic error = errors.New("worker got panic")
 	// ErrWorkerNotStarted is denoted the worker has not started accepting tasks.
 	ErrWorkerNotStarted error = errors.New("worker is not started")
+	// ErrWorkerAlreadyStarted is denoted the worker has already started accepting tasks.
+	ErrWorkerAlreadyStarted error = errors.New("worker is already started")
 	// ErrWorkerStopped is denoted the worker has already stopped accepting tasks.
 	ErrWorkerStopped error = errors.New("worker is stopped")
 )
@@ -116,15 +118,19 @@ func NewWorker(opts ...Option) (*Worker, error) {
 
 // Start waits the work...
 // HINT: it's goroutine!
-func (w *Worker) Start() {
-	w.start()
+func (w *Worker) Start() error {
+	return w.start()
 }
 
-func (w *Worker) start() bool {
+func (w *Worker) start() error {
 	w.Lock()
-	if w.started || w.stopped {
+	if w.stopped {
 		w.Unlock()
-		return false
+		return ErrWorkerStopped
+	}
+	if w.started {
+		w.Unlock()
+		return ErrWorkerAlreadyStarted
 	}
 	w.started = true
 	w.Unlock()
@@ -205,7 +211,7 @@ func (w *Worker) start() bool {
 
 	}()
 
-	return true
+	return nil
 }
 
 // Stop terminates worker. It is safe to call more than once.

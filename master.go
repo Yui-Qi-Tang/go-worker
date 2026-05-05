@@ -219,7 +219,9 @@ func (m *Master) WakeAllWorkersUp() error {
 	}
 
 	for _, w := range m.Pool {
-		w.Start()
+		if err := w.Start(); err != nil && err != ErrWorkerAlreadyStarted {
+			return err
+		}
 	}
 
 	return nil
@@ -250,7 +252,9 @@ func (m *Master) RecoveryWorker() {
 				continue
 			}
 
-			worker.Start()
+			if err := worker.Start(); err != nil {
+				continue
+			}
 			if err := m.AddWorker(worker); err != nil {
 				worker.Stop()
 			}
