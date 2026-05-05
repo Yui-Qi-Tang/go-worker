@@ -335,8 +335,15 @@ func (m *Master) WakeAllWorkersUp() error {
 		return ErrMasterWorkerPoolIsEmpty
 	}
 
-	for _, w := range m.Pool {
+	for i := 0; i < len(m.Pool); i++ {
+		w := m.Pool[i]
 		if err := w.Start(); err != nil && err != ErrWorkerAlreadyStarted {
+			if err == ErrWorkerStopped {
+				m.Pool = append(m.Pool[:i], m.Pool[i+1:]...)
+				if len(m.Pool) == 0 {
+					m.workerAdded = false
+				}
+			}
 			return err
 		}
 	}
