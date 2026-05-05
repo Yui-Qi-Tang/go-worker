@@ -198,6 +198,9 @@ func (m *Master) Schedule(task Task) error {
 				return ErrMasterStopped
 			}
 
+			if err == ErrWorkerPanic && m.workerPanic != nil {
+				m.recoverWorker(worker.Name)
+			}
 			if err == ErrWorkerStopped || (err == ErrWorkerPanic && m.workerPanic == nil) {
 				m.removeWorker(worker.Name, false)
 			}
@@ -270,6 +273,40 @@ func (m *Master) removeWorker(name string, expectRecovery bool) bool {
 	return false
 }
 
+func (m *Master) recoverWorker(name string) bool {
+	worker, err := NewWorker(WithRecovery(true))
+	if err != nil {
+		m.removeWorker(name, false)
+		return true
+	}
+
+	if err := worker.Start(); err != nil {
+		m.removeWorker(name, false)
+		return true
+	}
+
+	m.Lock()
+	defer m.Unlock()
+
+	for i, oldWorker := range m.Pool {
+		if oldWorker.Name == name {
+			m.Pool = append(m.Pool[:i], m.Pool[i+1:]...)
+			if m.stopped {
+				worker.Stop()
+				if len(m.Pool) == 0 {
+					m.workerAdded = false
+				}
+				return true
+			}
+			m.addWorkerLocked(worker)
+			return true
+		}
+	}
+
+	worker.Stop()
+	return false
+}
+
 // GetWorkers returns number of workers
 func (m *Master) GetWorkers() int {
 	m.RLock()
@@ -312,23 +349,7 @@ func (m *Master) RecoveryWorker() {
 	for {
 		select {
 		case name := <-m.workerPanic:
-			found := m.removeWorker(name, true)
-
-			if !found {
-				continue
-			}
-
-			worker, err := NewWorker(WithRecovery(true))
-			if err != nil {
-				continue
-			}
-
-			if err := worker.Start(); err != nil {
-				continue
-			}
-			if err := m.AddWorker(worker); err != nil {
-				worker.Stop()
-			}
+			m.recoverWorker(name)
 		case <-m.stopRecoveryRoutine:
 			return
 		}
