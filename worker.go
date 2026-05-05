@@ -138,7 +138,7 @@ func (w *Worker) start() error {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				w.markStopped()
+				w.stop()
 				w.status <- workerPanic
 
 				if w.Recovery != nil {
@@ -216,6 +216,10 @@ func (w *Worker) start() error {
 
 // Stop terminates worker. It is safe to call more than once.
 func (w *Worker) Stop() {
+	w.stop()
+}
+
+func (w *Worker) stop() {
 	w.stopOnce.Do(func() {
 		w.markStopped()
 		close(w.Quit)
