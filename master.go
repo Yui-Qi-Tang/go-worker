@@ -183,6 +183,9 @@ func (m *Master) Schedule(task Task) error {
 		if err := m.scheduleReadyError(); err != nil {
 			return err
 		}
+		if isNilTask(task) {
+			return ErrWorkerNilTask
+		}
 
 		select {
 		case worker := <-m.WorkerQueue: // pick a worker from queue

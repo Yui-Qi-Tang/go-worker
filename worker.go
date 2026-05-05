@@ -3,6 +3,7 @@
 package worker
 
 import (
+	"reflect"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -41,6 +42,8 @@ var (
 	ErrWorkerAlreadyStarted error = errors.New("worker is already started")
 	// ErrWorkerStopped is denoted the worker has already stopped accepting tasks.
 	ErrWorkerStopped error = errors.New("worker is stopped")
+	// ErrWorkerNilTask denotes the worker was asked to process a nil task.
+	ErrWorkerNilTask error = errors.New("worker task is nil")
 )
 
 // Worker is the structure for worker
@@ -260,6 +263,20 @@ func (w *Worker) readyError() error {
 	return nil
 }
 
+func isNilTask(task Task) bool {
+	if task == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(task)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
 func (w *Worker) markStopped() {
 	w.Lock()
 	w.stopped = true
@@ -270,6 +287,9 @@ func (w *Worker) markStopped() {
 func (w *Worker) Do(task Task) error {
 	if err := w.readyError(); err != nil {
 		return err
+	}
+	if isNilTask(task) {
+		return ErrWorkerNilTask
 	}
 
 	select {
