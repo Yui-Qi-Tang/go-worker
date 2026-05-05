@@ -18,6 +18,7 @@ type Master struct {
 	Quit        chan bool
 
 	stopOnce sync.Once
+	stopped  bool
 }
 
 var (
@@ -29,6 +30,8 @@ var (
 	ErrMasterWorkerPoolIsFull error = errors.New("pool of Master is full")
 	// ErrMasterWorkerPoolIsEmpty denotes the pool is empty
 	ErrMasterWorkerPoolIsEmpty error = errors.New("pool is empty")
+	// ErrMasterStopped denotes the master has already stopped accepting tasks.
+	ErrMasterStopped error = errors.New("master is stopped")
 )
 
 const maxPoolSize uint = 1 << 8
@@ -78,6 +81,10 @@ func (m *Master) AddWorker(worker *Worker) error {
 
 	m.Lock()
 	defer m.Unlock()
+
+	if m.stopped {
+		return ErrMasterStopped
+	}
 
 	if uint(len(m.Pool)+1) > maxPoolSize {
 		return ErrMasterWorkerPoolIsFull
@@ -130,9 +137,20 @@ func (m *Master) Dispatch(task Task) error {
 func (m *Master) Schedule(task Task) error {
 
 	for {
+		if m.isStopped() {
+			return ErrMasterStopped
+		}
+
 		select {
 		case worker := <-m.WorkerQueue: // pick a worker from queue
+			if m.isStopped() {
+				return ErrMasterStopped
+			}
+
 			err := worker.Do(task)
+			if err == ErrWorkerStopped && m.isStopped() {
+				return ErrMasterStopped
+			}
 
 			if err != ErrWorkerPanic && err != ErrWorkerStopped { // let worker back if the worker is still available
 				m.queueWorker(worker)
@@ -140,7 +158,7 @@ func (m *Master) Schedule(task Task) error {
 			// drop the task when the worker panics or stops.
 			return err
 		case <-m.Quit:
-			return nil
+			return ErrMasterStopped
 		}
 	}
 }
@@ -151,6 +169,7 @@ func (m *Master) Stop() {
 	m.stopOnce.Do(func() {
 		m.Lock()
 		defer m.Unlock()
+		m.stopped = true
 		for _, w := range m.Pool {
 			w.Stop()
 		}
@@ -163,6 +182,12 @@ func (m *Master) stopWorkerRecovery() {
 	if m.stopRecoveryRoutine != nil {
 		close(m.stopRecoveryRoutine)
 	}
+}
+
+func (m *Master) isStopped() bool {
+	m.RLock()
+	defer m.RUnlock()
+	return m.stopped
 }
 
 // GetWorkers returns number of workers
@@ -184,6 +209,10 @@ func (m *Master) WakeAllWorkersUp() error {
 
 	m.Lock()
 	defer m.Unlock()
+
+	if m.stopped {
+		return ErrMasterStopped
+	}
 
 	if len(m.Pool) == 0 {
 		return ErrMasterWorkerPoolIsEmpty
