@@ -90,12 +90,18 @@ func (m *Master) AddWorker(worker *Worker) error {
 
 	m.Pool = append(m.Pool, worker)
 
-	// assign worker to queue
-	go func() {
-		m.WorkerQueue <- worker
-	}()
+	m.queueWorker(worker)
 
 	return nil
+}
+
+func (m *Master) queueWorker(worker *Worker) {
+	go func() {
+		select {
+		case m.WorkerQueue <- worker:
+		case <-m.Quit:
+		}
+	}()
 }
 
 // AddWorkers creates number of workers with counts; HINT: the workers support recovery
@@ -126,14 +132,13 @@ func (m *Master) Schedule(task Task) error {
 	for {
 		select {
 		case worker := <-m.WorkerQueue: // pick a worker from queue
-			worker.Task <- task // worker waits for task
+			err := worker.Do(task)
 
-			status := worker.waitStatus()
-			if status != workerPanic { // let worker back if the worker with no panic
-				go func() { m.WorkerQueue <- worker }()
+			if err != ErrWorkerPanic && err != ErrWorkerStopped { // let worker back if the worker is still available
+				m.queueWorker(worker)
 			}
-			// drop the task, because the task makes the worker panic
-			return workerStatusError(status)
+			// drop the task when the worker panics or stops.
+			return err
 		case <-m.Quit:
 			return nil
 		}

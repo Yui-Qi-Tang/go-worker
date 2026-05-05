@@ -35,6 +35,10 @@ var (
 	ErrWorkerTaskDone error = errors.New("worker got error from executing job in Done phase")
 	// ErrWorkerPanic is denoted the worker got panic error from executing job or itself.
 	ErrWorkerPanic error = errors.New("worker got panic")
+	// ErrWorkerNotStarted is denoted the worker has not started accepting tasks.
+	ErrWorkerNotStarted error = errors.New("worker is not started")
+	// ErrWorkerStopped is denoted the worker has already stopped accepting tasks.
+	ErrWorkerStopped error = errors.New("worker is stopped")
 )
 
 // Worker is the structure for worker
@@ -51,6 +55,8 @@ type Worker struct {
 
 	status chan string
 
+	started  bool
+	stopped  bool
 	stopOnce sync.Once
 }
 
@@ -111,9 +117,22 @@ func NewWorker(opts ...Option) (*Worker, error) {
 // Start waits the work...
 // HINT: it's goroutine!
 func (w *Worker) Start() {
+	w.start()
+}
+
+func (w *Worker) start() bool {
+	w.Lock()
+	if w.started || w.stopped {
+		w.Unlock()
+		return false
+	}
+	w.started = true
+	w.Unlock()
+
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
+				w.markStopped()
 				w.status <- workerPanic
 
 				if w.Recovery != nil {
@@ -131,6 +150,7 @@ func (w *Worker) Start() {
 		for {
 			select {
 			case <-w.Quit:
+				w.markStopped()
 				w.logger.Info(workerEventQuit, zap.String("worker", w.Name))
 				w.logger.Sync()
 				return
@@ -184,11 +204,14 @@ func (w *Worker) Start() {
 		}
 
 	}()
+
+	return true
 }
 
 // Stop terminates worker. It is safe to call more than once.
 func (w *Worker) Stop() {
 	w.stopOnce.Do(func() {
+		w.markStopped()
 		close(w.Quit)
 	})
 }
@@ -214,11 +237,36 @@ func workerStatusError(status string) error {
 	}
 }
 
+func (w *Worker) readyError() error {
+	w.Lock()
+	defer w.Unlock()
+
+	if w.stopped {
+		return ErrWorkerStopped
+	}
+	if !w.started {
+		return ErrWorkerNotStarted
+	}
+	return nil
+}
+
+func (w *Worker) markStopped() {
+	w.Lock()
+	w.stopped = true
+	w.Unlock()
+}
+
 // Do processes task and returns an error when the task fails or the worker panics.
 func (w *Worker) Do(task Task) error {
-	go func() {
-		w.Task <- task
-	}()
+	if err := w.readyError(); err != nil {
+		return err
+	}
+
+	select {
+	case <-w.Quit:
+		return ErrWorkerStopped
+	case w.Task <- task:
+	}
 
 	return workerStatusError(w.waitStatus())
 }
