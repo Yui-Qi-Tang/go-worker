@@ -195,13 +195,7 @@ func (w *Worker) waitStatus() string {
 	return s
 }
 
-// Do processes task; error if panic
-func (w *Worker) Do(task Task) error {
-	go func() {
-		w.Task <- task
-	}()
-
-	status := w.waitStatus()
+func workerStatusError(status string) error {
 	switch status {
 	case workerPanic:
 		return ErrWorkerPanic
@@ -214,4 +208,13 @@ func (w *Worker) Do(task Task) error {
 	default:
 		return nil
 	}
+}
+
+// Do processes task and returns an error when the task fails or the worker panics.
+func (w *Worker) Do(task Task) error {
+	go func() {
+		w.Task <- task
+	}()
+
+	return workerStatusError(w.waitStatus())
 }

@@ -115,26 +115,25 @@ func (m *Master) AddWorkers(counts int) error {
 // Dispatch dispatches task to worker
 func (m *Master) Dispatch(task Task) error {
 	// add rate limit on task?
-	m.Schedule(task)
-	return nil
+	return m.Schedule(task)
 }
 
 // Schedule schedules task to worker
-func (m *Master) Schedule(task Task) {
+func (m *Master) Schedule(task Task) error {
 
 	for {
 		select {
 		case worker := <-m.WorkerQueue: // pick a worker from queue
 			worker.Task <- task // worker waits for task
 
-			if worker.waitStatus() != workerPanic { // let worker back if the worker with no panic
+			status := worker.waitStatus()
+			if status != workerPanic { // let worker back if the worker with no panic
 				go func() { m.WorkerQueue <- worker }()
-				return
 			}
-			// drop the task, becasue the task makes the worker painc
-			return
+			// drop the task, because the task makes the worker panic
+			return workerStatusError(status)
 		case <-m.Quit:
-			return
+			return nil
 		}
 	}
 }
