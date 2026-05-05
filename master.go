@@ -19,6 +19,8 @@ type Master struct {
 
 	stopOnce sync.Once
 	stopped  bool
+
+	workerAdded bool
 }
 
 var (
@@ -104,6 +106,7 @@ func (m *Master) addWorkerLocked(worker *Worker) {
 	}
 
 	m.Pool = append(m.Pool, worker)
+	m.workerAdded = true
 
 	m.queueWorker(worker)
 }
@@ -177,8 +180,8 @@ func (m *Master) Dispatch(task Task) error {
 func (m *Master) Schedule(task Task) error {
 
 	for {
-		if m.isStopped() {
-			return ErrMasterStopped
+		if err := m.scheduleReadyError(); err != nil {
+			return err
 		}
 
 		select {
@@ -228,6 +231,19 @@ func (m *Master) isStopped() bool {
 	m.RLock()
 	defer m.RUnlock()
 	return m.stopped
+}
+
+func (m *Master) scheduleReadyError() error {
+	m.RLock()
+	defer m.RUnlock()
+
+	if m.stopped {
+		return ErrMasterStopped
+	}
+	if len(m.Pool) == 0 && !m.workerAdded {
+		return ErrMasterWorkerPoolIsEmpty
+	}
+	return nil
 }
 
 // GetWorkers returns number of workers
