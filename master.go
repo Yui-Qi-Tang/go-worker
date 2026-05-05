@@ -35,13 +35,11 @@ const maxPoolSize uint = 1 << 8
 type MasterOption func(m *Master)
 
 // WithWorkerRecovery starts a routine for killing panic worker & re-create a new worker
-func WithWorkerRecovery(enanle bool) MasterOption {
+func WithWorkerRecovery(enable bool) MasterOption {
 	return func(m *Master) {
-		if enanle {
+		if enable {
 			m.workerPanic = make(chan string)
 			m.stopRecoveryRoutine = make(chan interface{})
-
-			m.workerPanic = make(chan string)
 
 			go m.RecoveryWorker()
 		}
@@ -76,6 +74,9 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return ErrMasterAddNilWorker
 	}
 
+	m.Lock()
+	defer m.Unlock()
+
 	if uint(len(m.Pool)+1) > maxPoolSize {
 		return ErrMasterWorkerPoolIsFull
 	}
@@ -85,14 +86,13 @@ func (m *Master) AddWorker(worker *Worker) error {
 		worker.Recovery = m.workerPanic
 	}
 
+	m.Pool = append(m.Pool, worker)
+
 	// assign worker to queue
 	go func() {
 		m.WorkerQueue <- worker
 	}()
 
-	m.Lock()
-	m.Pool = append(m.Pool, worker)
-	m.Unlock()
 	return nil
 }
 
@@ -191,25 +191,30 @@ func (m *Master) WakeAllWorkersUp() error {
 func (m *Master) RecoveryWorker() {
 	for {
 		select {
-		case v := <-m.workerPanic:
+		case name := <-m.workerPanic:
+			m.Lock()
+			found := false
 			for i, worker := range m.Pool {
-				if worker.Name == v {
-
-					// update pool: remove panic g and add new g
-					m.Lock()
+				if worker.Name == name {
 					m.Pool = append(m.Pool[:i], m.Pool[i+1:]...) // delete painc routine from pool
-					m.Unlock()
-
-					worker, err := NewWorker(WithRecovery(true))
-					if err != nil {
-						break
-					}
-					if err := m.AddWorker(worker); err != nil {
-						break
-					}
-					worker.Start()
+					found = true
 					break
 				}
+			}
+			m.Unlock()
+
+			if !found {
+				continue
+			}
+
+			worker, err := NewWorker(WithRecovery(true))
+			if err != nil {
+				continue
+			}
+
+			worker.Start()
+			if err := m.AddWorker(worker); err != nil {
+				worker.Stop()
 			}
 		case <-m.stopRecoveryRoutine:
 			return
