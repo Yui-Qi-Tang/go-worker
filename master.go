@@ -198,6 +198,10 @@ func (m *Master) Schedule(task Task) error {
 				return ErrMasterStopped
 			}
 
+			if err == ErrWorkerStopped || (err == ErrWorkerPanic && m.workerPanic == nil) {
+				m.removeWorker(worker.Name, false)
+			}
+
 			if err != ErrWorkerPanic && err != ErrWorkerStopped { // let worker back if the worker is still available
 				m.queueWorker(worker)
 			}
@@ -249,6 +253,23 @@ func (m *Master) scheduleReadyError() error {
 	return nil
 }
 
+func (m *Master) removeWorker(name string, expectRecovery bool) bool {
+	m.Lock()
+	defer m.Unlock()
+
+	for i, worker := range m.Pool {
+		if worker.Name == name {
+			m.Pool = append(m.Pool[:i], m.Pool[i+1:]...)
+			if len(m.Pool) == 0 && !expectRecovery {
+				m.workerAdded = false
+			}
+			return true
+		}
+	}
+
+	return false
+}
+
 // GetWorkers returns number of workers
 func (m *Master) GetWorkers() int {
 	m.RLock()
@@ -291,16 +312,7 @@ func (m *Master) RecoveryWorker() {
 	for {
 		select {
 		case name := <-m.workerPanic:
-			m.Lock()
-			found := false
-			for i, worker := range m.Pool {
-				if worker.Name == name {
-					m.Pool = append(m.Pool[:i], m.Pool[i+1:]...) // delete painc routine from pool
-					found = true
-					break
-				}
-			}
-			m.Unlock()
+			found := m.removeWorker(name, true)
 
 			if !found {
 				continue
