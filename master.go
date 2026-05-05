@@ -24,6 +24,8 @@ type Master struct {
 var (
 	// ErrMasterSetupWithTooLargePoolSize is denoted too large pool size
 	ErrMasterSetupWithTooLargePoolSize error = errors.New("exceed max pool size " + strconv.FormatUint(uint64(maxPoolSize), 10))
+	// ErrMasterSetupWithInvalidWorkerCount denotes an invalid worker count.
+	ErrMasterSetupWithInvalidWorkerCount error = errors.New("worker count can not be negative")
 	// ErrMasterAddNilWorker is an error that denotes Add nil to Master
 	ErrMasterAddNilWorker error = errors.New("worker can not be nil")
 	// ErrMasterWorkerPoolIsFull is denote the pool size of Master is full
@@ -90,6 +92,12 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return ErrMasterWorkerPoolIsFull
 	}
 
+	m.addWorkerLocked(worker)
+
+	return nil
+}
+
+func (m *Master) addWorkerLocked(worker *Worker) {
 	// attach worker to master recovery chan
 	if worker.Recovery != nil && m.workerPanic != nil {
 		worker.Recovery = m.workerPanic
@@ -98,8 +106,6 @@ func (m *Master) AddWorker(worker *Worker) error {
 	m.Pool = append(m.Pool, worker)
 
 	m.queueWorker(worker)
-
-	return nil
 }
 
 func (m *Master) queueWorker(worker *Worker) {
@@ -113,15 +119,49 @@ func (m *Master) queueWorker(worker *Worker) {
 
 // AddWorkers creates number of workers with counts; HINT: the workers support recovery
 func (m *Master) AddWorkers(counts int) error {
+	if counts < 0 {
+		return ErrMasterSetupWithInvalidWorkerCount
+	}
+	if uint(counts) > maxPoolSize {
+		return ErrMasterSetupWithTooLargePoolSize
+	}
+	if counts == 0 {
+		return nil
+	}
+
+	m.RLock()
+	if m.stopped {
+		m.RUnlock()
+		return ErrMasterStopped
+	}
+	if uint(len(m.Pool)+counts) > maxPoolSize {
+		m.RUnlock()
+		return ErrMasterWorkerPoolIsFull
+	}
+	m.RUnlock()
+
+	workers := make([]*Worker, 0, counts)
 	for i := 0; i < counts; i++ {
-		w, err := NewWorker(WithRecovery(true))
+		w, err := NewWorker(WithRecovery(m.workerPanic != nil))
 		if err != nil {
 			return err
 		}
+		workers = append(workers, w)
+	}
 
-		if err := m.AddWorker(w); err != nil {
-			return err
-		}
+	m.Lock()
+	defer m.Unlock()
+
+	if m.stopped {
+		return ErrMasterStopped
+	}
+
+	if uint(len(m.Pool)+len(workers)) > maxPoolSize {
+		return ErrMasterWorkerPoolIsFull
+	}
+
+	for _, w := range workers {
+		m.addWorkerLocked(w)
 	}
 
 	return nil
