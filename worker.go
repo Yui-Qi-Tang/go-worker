@@ -50,6 +50,8 @@ type Worker struct {
 	Quit     chan interface{}
 
 	status chan string
+
+	stopOnce sync.Once
 }
 
 // Option is a functional option for worker setup
@@ -184,9 +186,11 @@ func (w *Worker) Start() {
 	}()
 }
 
-// Stop terminates worker
+// Stop terminates worker. It is safe to call more than once.
 func (w *Worker) Stop() {
-	close(w.Quit)
+	w.stopOnce.Do(func() {
+		close(w.Quit)
+	})
 }
 
 // waitStatus returns status of worker

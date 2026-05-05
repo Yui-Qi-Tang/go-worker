@@ -16,6 +16,8 @@ type Master struct {
 
 	WorkerQueue chan *Worker
 	Quit        chan bool
+
+	stopOnce sync.Once
 }
 
 var (
@@ -141,13 +143,15 @@ func (m *Master) Schedule(task Task) error {
 // Stop stops master
 // TODO: use context to close the workers under master
 func (m *Master) Stop() {
-	m.Lock()
-	defer m.Unlock()
-	for _, w := range m.Pool {
-		w.Stop()
-	}
-	m.stopWorkerRecovery()
-	close(m.Quit)
+	m.stopOnce.Do(func() {
+		m.Lock()
+		defer m.Unlock()
+		for _, w := range m.Pool {
+			w.Stop()
+		}
+		m.stopWorkerRecovery()
+		close(m.Quit)
+	})
 }
 
 func (m *Master) stopWorkerRecovery() {
