@@ -46,6 +46,8 @@ var (
 	ErrWorkerNilTask error = errors.New("worker task is nil")
 	// ErrWorkerInvalidName denotes a worker was configured with an empty name.
 	ErrWorkerInvalidName error = errors.New("worker name can not be empty")
+	// ErrWorkerNotInitialized denotes a worker was not created with package invariants.
+	ErrWorkerNotInitialized error = errors.New("worker is not initialized")
 )
 
 // Worker is the structure for worker
@@ -248,6 +250,10 @@ func (w *Worker) isStopped() bool {
 	w.Lock()
 	defer w.Unlock()
 	return w.stopped
+}
+
+func (w *Worker) isInitialized() bool {
+	return w.Task != nil && w.Quit != nil && w.status != nil && w.logger != nil
 }
 
 // waitStatus returns status of worker

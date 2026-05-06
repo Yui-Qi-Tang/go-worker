@@ -100,6 +100,10 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return ErrWorkerInvalidName
 	}
 
+	if !worker.isInitialized() {
+		return ErrWorkerNotInitialized
+	}
+
 	if m.hasWorkerIdentityLocked(worker.identity()) {
 		return ErrMasterDuplicateWorkerName
 	}
