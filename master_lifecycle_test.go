@@ -56,3 +56,15 @@ func TestMasterRejectsLifecycleOperationsAfterStop(t *testing.T) {
 		t.Fatalf("WakeAllWorkersUp() error = %v, want %v", got, ErrMasterStopped)
 	}
 }
+
+func TestMasterAddWorkersZeroCountAfterStopReturnsStopped(t *testing.T) {
+	ms, err := NewMaster()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms.Stop()
+
+	if got := ms.AddWorkers(0); got != ErrMasterStopped {
+		t.Fatalf("AddWorkers(0) after Stop() error = %v, want %v", got, ErrMasterStopped)
+	}
+}

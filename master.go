@@ -151,14 +151,15 @@ func (m *Master) AddWorkers(counts int) error {
 	if uint(counts) > maxPoolSize {
 		return ErrMasterSetupWithTooLargePoolSize
 	}
-	if counts == 0 {
-		return nil
-	}
 
 	m.RLock()
 	if m.stopped {
 		m.RUnlock()
 		return ErrMasterStopped
+	}
+	if counts == 0 {
+		m.RUnlock()
+		return nil
 	}
 	if uint(len(m.Pool)+counts) > maxPoolSize {
 		m.RUnlock()
