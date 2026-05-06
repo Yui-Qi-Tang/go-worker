@@ -138,6 +138,10 @@ func (w *Worker) Start() error {
 
 func (w *Worker) start() error {
 	w.Lock()
+	if !w.isInitialized() {
+		w.Unlock()
+		return ErrWorkerNotInitialized
+	}
 	if w.stopped {
 		w.Unlock()
 		return ErrWorkerStopped
@@ -240,6 +244,10 @@ func (w *Worker) Stop() {
 }
 
 func (w *Worker) stop() {
+	if !w.isInitialized() {
+		return
+	}
+
 	w.stopOnce.Do(func() {
 		w.markStopped()
 		close(w.Quit)
@@ -290,6 +298,9 @@ func (w *Worker) readyError() error {
 	w.Lock()
 	defer w.Unlock()
 
+	if !w.isInitialized() {
+		return ErrWorkerNotInitialized
+	}
 	if w.stopped {
 		return ErrWorkerStopped
 	}
