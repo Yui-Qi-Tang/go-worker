@@ -244,6 +244,12 @@ func (w *Worker) identity() string {
 	return w.id
 }
 
+func (w *Worker) isStopped() bool {
+	w.Lock()
+	defer w.Unlock()
+	return w.stopped
+}
+
 // waitStatus returns status of worker
 func (w *Worker) waitStatus() string {
 	s := <-w.status

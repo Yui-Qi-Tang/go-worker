@@ -92,6 +92,10 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return ErrMasterStopped
 	}
 
+	if worker.isStopped() {
+		return ErrWorkerStopped
+	}
+
 	if worker.Name == "" {
 		return ErrWorkerInvalidName
 	}

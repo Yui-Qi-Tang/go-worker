@@ -37,11 +37,11 @@ func TestMasterWakeAllWorkersUpReturnsStoppedWorkerError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.Stop()
 
 	if err := ms.AddWorker(w); err != nil {
 		t.Fatal(err)
 	}
+	w.Stop()
 
 	if got := ms.WakeAllWorkersUp(); got != ErrWorkerStopped {
 		t.Fatalf("WakeAllWorkersUp() error = %v, want %v", got, ErrWorkerStopped)
@@ -59,11 +59,11 @@ func TestMasterWakeAllWorkersUpRemovesStoppedWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.Stop()
 
 	if err := ms.AddWorker(w); err != nil {
 		t.Fatal(err)
 	}
+	w.Stop()
 
 	if got := ms.WakeAllWorkersUp(); got != ErrWorkerStopped {
 		t.Fatalf("WakeAllWorkersUp() error = %v, want %v", got, ErrWorkerStopped)
@@ -84,5 +84,26 @@ func TestMasterWakeAllWorkersUpRemovesStoppedWorker(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Dispatch deadlocked after stopped worker wakeup")
+	}
+}
+
+func TestMasterAddWorkerRejectsStoppedWorkerWithoutPoolMutation(t *testing.T) {
+	ms, err := NewMaster()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Stop()
+
+	w, err := NewWorker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Stop()
+
+	if got := ms.AddWorker(w); got != ErrWorkerStopped {
+		t.Fatalf("AddWorker(stopped worker) error = %v, want %v", got, ErrWorkerStopped)
+	}
+	if got := ms.GetWorkers(); got != 0 {
+		t.Fatalf("workers after rejected stopped worker = %d, want 0", got)
 	}
 }
