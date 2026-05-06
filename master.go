@@ -343,11 +343,11 @@ func (m *Master) GetWorkers() int {
 	return len(m.Pool)
 }
 
-// GetPoolSize returns number of workers
+// GetPoolSize returns number of workers in the pool.
 func (m *Master) GetPoolSize() int {
 	m.RLock()
 	defer m.RUnlock()
-	return cap(m.Pool)
+	return len(m.Pool)
 }
 
 // WakeAllWorkersUp weaks all of workers in the pool up
