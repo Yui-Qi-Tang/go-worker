@@ -296,6 +296,12 @@ func (w *Worker) isStopped() bool {
 	return w.stopped
 }
 
+func (w *Worker) isStarted() bool {
+	w.Lock()
+	defer w.Unlock()
+	return w.started && !w.stopped
+}
+
 func (w *Worker) isInitialized() bool {
 	return w.Task != nil && w.Quit != nil && w.status != nil && w.logger != nil
 }

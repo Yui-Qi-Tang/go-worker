@@ -226,6 +226,13 @@ func (m *Master) Schedule(task Task) error {
 			if err == ErrWorkerStopped && m.isStopped() {
 				return ErrMasterStopped
 			}
+			if err == ErrWorkerNotStarted {
+				m.queueWorker(worker)
+				if m.hasStartedWorker() {
+					continue
+				}
+				return err
+			}
 
 			if err == ErrWorkerPanic && m.workerPanic != nil {
 				m.recoverWorker(worker.identity())
@@ -275,6 +282,18 @@ func (m *Master) hasWorker(worker *Worker) bool {
 	defer m.RUnlock()
 	for _, poolWorker := range m.Pool {
 		if poolWorker == worker {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Master) hasStartedWorker() bool {
+	m.RLock()
+	defer m.RUnlock()
+
+	for _, worker := range m.Pool {
+		if worker.isStarted() {
 			return true
 		}
 	}
