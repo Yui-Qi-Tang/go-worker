@@ -39,6 +39,76 @@ func TestMasterRecoveryDoesNotStartDuplicateReplacement(t *testing.T) {
 	}
 }
 
+func TestMasterRecoveryUsesWorkerIdentityAfterNameMutation(t *testing.T) {
+	ms, err := NewMaster(WithWorkerRecovery(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Stop()
+
+	first, err := NewWorker(WithName("first-worker"), WithRecovery(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := NewWorker(WithName("second-worker"), WithRecovery(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ms.AddWorker(first); err != nil {
+		t.Fatal(err)
+	}
+	if got := receiveQueuedWorker(t, ms); got != first {
+		t.Fatalf("queued worker = %p, want first worker %p", got, first)
+	}
+	if err := ms.AddWorker(second); err != nil {
+		t.Fatal(err)
+	}
+	second.Name = first.Name
+
+	if err := ms.WakeAllWorkersUp(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := dispatchWithTimeout(t, ms, panicErr); got != ErrWorkerPanic {
+		t.Fatalf("panic Dispatch() error = %v, want %v", got, ErrWorkerPanic)
+	}
+
+	if !workerInPool(ms, first) {
+		t.Fatal("recovery removed the non-panicked worker after another worker reused its public name")
+	}
+	if workerInPool(ms, second) {
+		t.Fatal("recovery left the panicked worker in the pool")
+	}
+	if got := ms.GetWorkers(); got != 2 {
+		t.Fatalf("workers after duplicate-name recovery = %d, want 2", got)
+	}
+}
+
+func receiveQueuedWorker(t *testing.T, ms *Master) *Worker {
+	t.Helper()
+
+	select {
+	case worker := <-ms.WorkerQueue:
+		return worker
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for queued worker")
+		return nil
+	}
+}
+
+func workerInPool(ms *Master, target *Worker) bool {
+	ms.RLock()
+	defer ms.RUnlock()
+
+	for _, worker := range ms.Pool {
+		if worker == target {
+			return true
+		}
+	}
+	return false
+}
+
 func captureStderr(t *testing.T) func() string {
 	t.Helper()
 

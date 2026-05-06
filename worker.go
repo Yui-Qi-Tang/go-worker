@@ -53,6 +53,7 @@ type Worker struct {
 	sync.Mutex
 	Task chan Task
 	Name string
+	id   string
 
 	logger *zap.Logger
 
@@ -102,6 +103,7 @@ func NewWorker(opts ...Option) (*Worker, error) {
 		return nil, errors.New("new worker error: invalid uuid(len==0)")
 	}
 
+	w.id = name
 	w.Name = name // default name
 
 	config := zap.NewProductionConfig()
@@ -151,7 +153,7 @@ func (w *Worker) start() error {
 				w.status <- workerPanic
 
 				if w.Recovery != nil {
-					w.Recovery <- w.Name
+					w.Recovery <- w.identity()
 				}
 
 				w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", err))
@@ -233,6 +235,13 @@ func (w *Worker) stop() {
 		w.markStopped()
 		close(w.Quit)
 	})
+}
+
+func (w *Worker) identity() string {
+	if w.id == "" {
+		return w.Name
+	}
+	return w.id
 }
 
 // waitStatus returns status of worker

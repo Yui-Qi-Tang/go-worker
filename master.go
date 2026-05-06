@@ -218,10 +218,10 @@ func (m *Master) Schedule(task Task) error {
 			}
 
 			if err == ErrWorkerPanic && m.workerPanic != nil {
-				m.recoverWorker(worker.Name)
+				m.recoverWorker(worker.identity())
 			}
 			if err == ErrWorkerStopped || (err == ErrWorkerPanic && m.workerPanic == nil) {
-				m.removeWorker(worker.Name, false)
+				m.removeWorker(worker.identity(), false)
 			}
 
 			if err != ErrWorkerPanic && err != ErrWorkerStopped { // let worker back if the worker is still available
@@ -275,12 +275,12 @@ func (m *Master) scheduleReadyError() error {
 	return nil
 }
 
-func (m *Master) removeWorker(name string, expectRecovery bool) bool {
+func (m *Master) removeWorker(id string, expectRecovery bool) bool {
 	m.Lock()
 	defer m.Unlock()
 
 	for i, worker := range m.Pool {
-		if worker.Name == name {
+		if worker.identity() == id {
 			m.Pool = append(m.Pool[:i], m.Pool[i+1:]...)
 			if len(m.Pool) == 0 && !expectRecovery {
 				m.workerAdded = false
@@ -292,64 +292,45 @@ func (m *Master) removeWorker(name string, expectRecovery bool) bool {
 	return false
 }
 
-func (m *Master) recoverWorker(name string) bool {
-	m.Lock()
-	found := false
-	for i, oldWorker := range m.Pool {
-		if oldWorker.Name == name {
-			m.Pool = append(m.Pool[:i], m.Pool[i+1:]...)
-			found = true
-			break
-		}
-	}
-	if !found {
-		m.Unlock()
-		return false
-	}
-	if m.stopped {
-		if len(m.Pool) == 0 {
-			m.workerAdded = false
-		}
-		m.Unlock()
-		return true
-	}
-	m.Unlock()
-
-	worker, err := NewWorker(WithRecovery(true))
-	if err != nil {
-		m.finishFailedRecovery()
-		return true
-	}
-
-	if err := worker.Start(); err != nil {
-		m.finishFailedRecovery()
-		return true
-	}
-
+func (m *Master) recoverWorker(id string) bool {
 	m.Lock()
 	defer m.Unlock()
 
-	if m.stopped {
-		worker.Stop()
-		if len(m.Pool) == 0 {
-			m.workerAdded = false
+	for i, oldWorker := range m.Pool {
+		if oldWorker.identity() == id {
+			m.Pool = append(m.Pool[:i], m.Pool[i+1:]...)
+
+			if m.stopped {
+				m.markWorkerPoolEmptyLocked()
+				return true
+			}
+
+			worker, err := NewWorker(WithRecovery(true))
+			if err != nil {
+				m.markWorkerPoolEmptyLocked()
+				return true
+			}
+
+			if err := worker.Start(); err != nil {
+				m.markWorkerPoolEmptyLocked()
+				return true
+			}
+
+			if uint(len(m.Pool)+1) > maxPoolSize {
+				worker.Stop()
+				m.markWorkerPoolEmptyLocked()
+				return true
+			}
+
+			m.addWorkerLocked(worker)
+			return true
 		}
-		return true
 	}
 
-	if uint(len(m.Pool)+1) > maxPoolSize {
-		worker.Stop()
-		return true
-	}
-
-	m.addWorkerLocked(worker)
-	return true
+	return false
 }
 
-func (m *Master) finishFailedRecovery() {
-	m.Lock()
-	defer m.Unlock()
-
+func (m *Master) markWorkerPoolEmptyLocked() {
 	if len(m.Pool) == 0 {
 		m.workerAdded = false
 	}
@@ -403,8 +384,8 @@ func (m *Master) WakeAllWorkersUp() error {
 func (m *Master) RecoveryWorker() {
 	for {
 		select {
-		case name := <-m.workerPanic:
-			m.recoverWorker(name)
+		case id := <-m.workerPanic:
+			m.recoverWorker(id)
 		case <-m.stopRecoveryRoutine:
 			return
 		}
