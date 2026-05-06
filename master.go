@@ -214,6 +214,9 @@ func (m *Master) Schedule(task Task) error {
 			if m.isStopped() {
 				return ErrMasterStopped
 			}
+			if !m.hasWorker(worker) {
+				continue
+			}
 
 			err := worker.Do(task)
 			if err == ErrWorkerStopped && m.isStopped() {
@@ -257,6 +260,16 @@ func (m *Master) stopWorkerRecovery() {
 	if m.stopRecoveryRoutine != nil {
 		close(m.stopRecoveryRoutine)
 	}
+}
+
+func (m *Master) hasWorker(worker *Worker) bool {
+	if worker == nil {
+		return false
+	}
+
+	m.RLock()
+	defer m.RUnlock()
+	return m.hasWorkerIdentityLocked(worker.identity())
 }
 
 func (m *Master) isStopped() bool {
