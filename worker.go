@@ -71,6 +71,26 @@ type Worker struct {
 	stopOnce sync.Once
 }
 
+type taskRequest struct {
+	Task
+	status chan string
+}
+
+func newTaskRequest(task Task) *taskRequest {
+	return &taskRequest{
+		Task:   task,
+		status: make(chan string, 1),
+	}
+}
+
+func (r *taskRequest) reportStatus(status string) {
+	r.status <- status
+}
+
+func (r *taskRequest) waitStatus() string {
+	return <-r.status
+}
+
 // Option is a functional option for worker setup
 type Option func(w *Worker)
 
@@ -97,7 +117,7 @@ func NewWorker(opts ...Option) (*Worker, error) {
 	w := &Worker{
 		Quit:   make(chan interface{}),
 		Task:   make(chan Task),
-		status: make(chan string),
+		status: make(chan string, 1),
 	}
 
 	uuid := guuid.New()
@@ -154,6 +174,8 @@ func (w *Worker) start() error {
 	w.Unlock()
 
 	go func() {
+		var activeTask Task
+
 		defer func() {
 			if err := recover(); err != nil {
 				w.stop()
@@ -165,7 +187,7 @@ func (w *Worker) start() error {
 
 				w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", err))
 				w.logger.Sync()
-				w.status <- workerPanic
+				w.reportTaskStatus(activeTask, workerPanic)
 				return
 			}
 		}()
@@ -180,9 +202,11 @@ func (w *Worker) start() error {
 				w.logger.Sync()
 				return
 			case task := <-w.Task:
+				activeTask = task
 				if isNilTask(task) {
 					w.logger.Error(workerErrNil, zap.String("worker", w.Name))
-					w.status <- workerErrNil
+					w.reportTaskStatus(task, workerErrNil)
+					activeTask = nil
 					break
 				}
 
@@ -199,7 +223,8 @@ func (w *Worker) start() error {
 						zap.String("task_name", task.ID()),
 						zap.Any("reason", err),
 					)
-					w.status <- workerErrInit
+					w.reportTaskStatus(task, workerErrInit)
+					activeTask = nil
 					break
 				}
 
@@ -210,7 +235,8 @@ func (w *Worker) start() error {
 						zap.String("task_name", task.ID()),
 						zap.Any("reason", err),
 					)
-					w.status <- workerErrRun
+					w.reportTaskStatus(task, workerErrRun)
+					activeTask = nil
 					break
 				}
 
@@ -221,7 +247,8 @@ func (w *Worker) start() error {
 						zap.String("task_name", task.ID()),
 						zap.Any("reason", err),
 					)
-					w.status <- workerErrDone
+					w.reportTaskStatus(task, workerErrDone)
+					activeTask = nil
 					break
 				}
 
@@ -230,7 +257,8 @@ func (w *Worker) start() error {
 					zap.String("worker", w.Name),
 					zap.String("task_id", task.ID()),
 				)
-				w.status <- workerEventDone
+				w.reportTaskStatus(task, workerEventDone)
+				activeTask = nil
 			}
 		}
 
@@ -276,6 +304,22 @@ func (w *Worker) isInitialized() bool {
 func (w *Worker) waitStatus() string {
 	s := <-w.status
 	return s
+}
+
+func (w *Worker) reportTaskStatus(task Task, status string) {
+	if request, ok := task.(*taskRequest); ok {
+		request.reportStatus(status)
+		return
+	}
+
+	w.reportStatus(status)
+}
+
+func (w *Worker) reportStatus(status string) {
+	select {
+	case w.status <- status:
+	default:
+	}
 }
 
 func workerStatusError(status string) error {
@@ -340,11 +384,12 @@ func (w *Worker) Do(task Task) error {
 		return ErrWorkerNilTask
 	}
 
+	request := newTaskRequest(task)
 	select {
 	case <-w.Quit:
 		return ErrWorkerStopped
-	case w.Task <- task:
+	case w.Task <- request:
 	}
 
-	return workerStatusError(w.waitStatus())
+	return workerStatusError(request.waitStatus())
 }
