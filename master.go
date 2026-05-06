@@ -273,7 +273,12 @@ func (m *Master) hasWorker(worker *Worker) bool {
 
 	m.RLock()
 	defer m.RUnlock()
-	return m.hasWorkerIdentityLocked(worker.identity())
+	for _, poolWorker := range m.Pool {
+		if poolWorker == worker {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Master) isStopped() bool {
