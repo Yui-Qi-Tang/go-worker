@@ -103,7 +103,6 @@ func NewWorker(opts ...Option) (*Worker, error) {
 		return nil, errors.New("new worker error: invalid uuid(len==0)")
 	}
 
-	w.id = name
 	w.Name = name // default name
 
 	config := zap.NewProductionConfig()
@@ -123,6 +122,7 @@ func NewWorker(opts ...Option) (*Worker, error) {
 	if w.Name == "" {
 		return nil, ErrWorkerInvalidName
 	}
+	w.id = w.Name
 
 	return w, nil
 }

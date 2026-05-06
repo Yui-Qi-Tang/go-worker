@@ -100,7 +100,7 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return ErrWorkerInvalidName
 	}
 
-	if m.hasWorkerNameLocked(worker.Name) {
+	if m.hasWorkerIdentityLocked(worker.identity()) {
 		return ErrMasterDuplicateWorkerName
 	}
 
@@ -113,9 +113,9 @@ func (m *Master) AddWorker(worker *Worker) error {
 	return nil
 }
 
-func (m *Master) hasWorkerNameLocked(name string) bool {
+func (m *Master) hasWorkerIdentityLocked(id string) bool {
 	for _, worker := range m.Pool {
-		if worker.Name == name {
+		if worker.identity() == id {
 			return true
 		}
 	}
