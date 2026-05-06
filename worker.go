@@ -44,6 +44,8 @@ var (
 	ErrWorkerStopped error = errors.New("worker is stopped")
 	// ErrWorkerNilTask denotes the worker was asked to process a nil task.
 	ErrWorkerNilTask error = errors.New("worker task is nil")
+	// ErrWorkerInvalidName denotes a worker was configured with an empty name.
+	ErrWorkerInvalidName error = errors.New("worker name can not be empty")
 )
 
 // Worker is the structure for worker
@@ -114,6 +116,10 @@ func NewWorker(opts ...Option) (*Worker, error) {
 
 	for _, opt := range opts {
 		opt(w)
+	}
+
+	if w.Name == "" {
+		return nil, ErrWorkerInvalidName
 	}
 
 	return w, nil

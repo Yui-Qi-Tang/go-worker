@@ -36,6 +36,8 @@ var (
 	ErrMasterWorkerPoolIsEmpty error = errors.New("pool is empty")
 	// ErrMasterStopped denotes the master has already stopped accepting tasks.
 	ErrMasterStopped error = errors.New("master is stopped")
+	// ErrMasterDuplicateWorkerName denotes the master already has a worker with the same name.
+	ErrMasterDuplicateWorkerName error = errors.New("worker name already exists")
 )
 
 const maxPoolSize uint = 1 << 8
@@ -90,6 +92,14 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return ErrMasterStopped
 	}
 
+	if worker.Name == "" {
+		return ErrWorkerInvalidName
+	}
+
+	if m.hasWorkerNameLocked(worker.Name) {
+		return ErrMasterDuplicateWorkerName
+	}
+
 	if uint(len(m.Pool)+1) > maxPoolSize {
 		return ErrMasterWorkerPoolIsFull
 	}
@@ -97,6 +107,15 @@ func (m *Master) AddWorker(worker *Worker) error {
 	m.addWorkerLocked(worker)
 
 	return nil
+}
+
+func (m *Master) hasWorkerNameLocked(name string) bool {
+	for _, worker := range m.Pool {
+		if worker.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Master) addWorkerLocked(worker *Worker) {
