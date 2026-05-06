@@ -201,7 +201,13 @@ func (w *Worker) start() error {
 				w.logger.Info(workerEventQuit, zap.String("worker", w.Name))
 				w.logger.Sync()
 				return
-			case task := <-w.Task:
+			case task, ok := <-w.Task:
+				if !ok {
+					w.stop()
+					w.logger.Info(workerEventQuit, zap.String("worker", w.Name))
+					w.logger.Sync()
+					return
+				}
 				activeTask = task
 				if isNilTask(task) {
 					w.logger.Error(workerErrNil, zap.String("worker", w.Name))
@@ -400,6 +406,22 @@ func (w *Worker) markStopped() {
 	w.Unlock()
 }
 
+func (w *Worker) sendTask(task Task) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			w.stop()
+			err = ErrWorkerStopped
+		}
+	}()
+
+	select {
+	case <-w.Quit:
+		return ErrWorkerStopped
+	case w.Task <- task:
+		return nil
+	}
+}
+
 // Do processes task and returns an error when the task fails or the worker panics.
 func (w *Worker) Do(task Task) error {
 	if err := w.readyError(); err != nil {
@@ -410,10 +432,8 @@ func (w *Worker) Do(task Task) error {
 	}
 
 	request := newTaskRequest(task)
-	select {
-	case <-w.Quit:
-		return ErrWorkerStopped
-	case w.Task <- request:
+	if err := w.sendTask(request); err != nil {
+		return err
 	}
 
 	return workerStatusError(request.waitStatus())
