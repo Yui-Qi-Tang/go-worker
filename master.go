@@ -103,16 +103,16 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return ErrMasterStopped
 	}
 
+	if !worker.isInitialized() {
+		return ErrWorkerNotInitialized
+	}
+
 	if worker.isStopped() {
 		return ErrWorkerStopped
 	}
 
 	if worker.Name == "" {
 		return ErrWorkerInvalidName
-	}
-
-	if !worker.isInitialized() {
-		return ErrWorkerNotInitialized
 	}
 
 	if m.hasWorkerIdentityLocked(worker.identity()) {
