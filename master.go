@@ -36,6 +36,8 @@ var (
 	ErrMasterWorkerPoolIsEmpty error = errors.New("pool is empty")
 	// ErrMasterStopped denotes the master has already stopped accepting tasks.
 	ErrMasterStopped error = errors.New("master is stopped")
+	// ErrMasterNotInitialized denotes a master was not created with package invariants.
+	ErrMasterNotInitialized error = errors.New("master is not initialized")
 	// ErrMasterDuplicateWorkerName denotes the master already has a worker with the same name.
 	ErrMasterDuplicateWorkerName error = errors.New("worker name already exists")
 )
@@ -83,6 +85,9 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 func (m *Master) AddWorker(worker *Worker) error {
 	if worker == nil {
 		return ErrMasterAddNilWorker
+	}
+	if !m.isInitialized() {
+		return ErrMasterNotInitialized
 	}
 
 	m.Lock()
@@ -137,6 +142,10 @@ func (m *Master) addWorkerLocked(worker *Worker) {
 }
 
 func (m *Master) queueWorker(worker *Worker) {
+	if !m.isInitialized() {
+		return
+	}
+
 	go func() {
 		select {
 		case m.WorkerQueue <- worker:
@@ -152,6 +161,9 @@ func (m *Master) AddWorkers(counts int) error {
 	}
 	if uint(counts) > maxPoolSize {
 		return ErrMasterSetupWithTooLargePoolSize
+	}
+	if !m.isInitialized() {
+		return ErrMasterNotInitialized
 	}
 
 	m.RLock()
@@ -255,6 +267,10 @@ func (m *Master) Schedule(task Task) error {
 // Stop stops master
 // TODO: use context to close the workers under master
 func (m *Master) Stop() {
+	if !m.isInitialized() {
+		return
+	}
+
 	m.stopOnce.Do(func() {
 		m.Lock()
 		defer m.Unlock()
@@ -274,7 +290,7 @@ func (m *Master) stopWorkerRecovery() {
 }
 
 func (m *Master) hasWorker(worker *Worker) bool {
-	if worker == nil {
+	if worker == nil || !m.isInitialized() {
 		return false
 	}
 
@@ -289,6 +305,10 @@ func (m *Master) hasWorker(worker *Worker) bool {
 }
 
 func (m *Master) hasStartedWorker() bool {
+	if !m.isInitialized() {
+		return false
+	}
+
 	m.RLock()
 	defer m.RUnlock()
 
@@ -301,12 +321,20 @@ func (m *Master) hasStartedWorker() bool {
 }
 
 func (m *Master) isStopped() bool {
+	if !m.isInitialized() {
+		return true
+	}
+
 	m.RLock()
 	defer m.RUnlock()
 	return m.stopped
 }
 
 func (m *Master) scheduleReadyError() error {
+	if !m.isInitialized() {
+		return ErrMasterNotInitialized
+	}
+
 	m.RLock()
 	defer m.RUnlock()
 
@@ -320,6 +348,10 @@ func (m *Master) scheduleReadyError() error {
 }
 
 func (m *Master) removeWorker(id string, expectRecovery bool) bool {
+	if !m.isInitialized() {
+		return false
+	}
+
 	m.Lock()
 	defer m.Unlock()
 
@@ -337,6 +369,10 @@ func (m *Master) removeWorker(id string, expectRecovery bool) bool {
 }
 
 func (m *Master) recoverWorker(id string) bool {
+	if !m.isInitialized() {
+		return false
+	}
+
 	m.Lock()
 	defer m.Unlock()
 
@@ -382,6 +418,10 @@ func (m *Master) markWorkerPoolEmptyLocked() {
 
 // GetWorkers returns number of workers
 func (m *Master) GetWorkers() int {
+	if !m.isInitialized() {
+		return 0
+	}
+
 	m.RLock()
 	defer m.RUnlock()
 	return len(m.Pool)
@@ -389,6 +429,10 @@ func (m *Master) GetWorkers() int {
 
 // GetPoolSize returns number of workers in the pool.
 func (m *Master) GetPoolSize() int {
+	if !m.isInitialized() {
+		return 0
+	}
+
 	m.RLock()
 	defer m.RUnlock()
 	return len(m.Pool)
@@ -396,6 +440,9 @@ func (m *Master) GetPoolSize() int {
 
 // WakeAllWorkersUp weaks all of workers in the pool up
 func (m *Master) WakeAllWorkersUp() error {
+	if !m.isInitialized() {
+		return ErrMasterNotInitialized
+	}
 
 	m.Lock()
 	defer m.Unlock()
@@ -430,6 +477,10 @@ func (m *Master) WakeAllWorkersUp() error {
 
 // RecoveryWorker re-creates a new worker when receives worker panic
 func (m *Master) RecoveryWorker() {
+	if !m.isRecoveryInitialized() {
+		return
+	}
+
 	for {
 		select {
 		case id := <-m.workerPanic:
@@ -438,4 +489,12 @@ func (m *Master) RecoveryWorker() {
 			return
 		}
 	}
+}
+
+func (m *Master) isInitialized() bool {
+	return m != nil && m.WorkerQueue != nil && m.Quit != nil
+}
+
+func (m *Master) isRecoveryInitialized() bool {
+	return m != nil && m.workerPanic != nil && m.stopRecoveryRoutine != nil
 }
