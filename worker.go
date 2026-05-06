@@ -23,6 +23,7 @@ const (
 	workerErrInit string = "error-init"
 	workerErrRun  string = "error-run"
 	workerErrDone string = "error-done"
+	workerErrNil  string = "error-nil-task"
 	// panic
 	workerPanic string = "panic"
 )
@@ -174,6 +175,12 @@ func (w *Worker) start() error {
 				w.logger.Sync()
 				return
 			case task := <-w.Task:
+				if isNilTask(task) {
+					w.logger.Error(workerErrNil, zap.String("worker", w.Name))
+					w.status <- workerErrNil
+					break
+				}
+
 				w.logger.Info(
 					workerEventReceived,
 					zap.String("worker", w.Name),
@@ -272,6 +279,8 @@ func workerStatusError(status string) error {
 		return ErrWorkerTaskRun
 	case workerErrDone:
 		return ErrWorkerTaskDone
+	case workerErrNil:
+		return ErrWorkerNilTask
 	default:
 		return nil
 	}
