@@ -86,7 +86,7 @@ func WithName(name string) Option {
 func WithRecovery(ok bool) Option {
 	return func(w *Worker) {
 		if ok {
-			w.Recovery = make(chan string)
+			w.Recovery = make(chan string, 1)
 		}
 	}
 }
@@ -157,14 +157,15 @@ func (w *Worker) start() error {
 		defer func() {
 			if err := recover(); err != nil {
 				w.stop()
-				w.status <- workerPanic
 
 				if w.Recovery != nil {
+					// Recovery must not wait for status observers; tasks can enter through Worker.Task directly.
 					w.Recovery <- w.identity()
 				}
 
 				w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", err))
 				w.logger.Sync()
+				w.status <- workerPanic
 				return
 			}
 		}()

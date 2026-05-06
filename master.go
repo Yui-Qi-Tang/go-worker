@@ -49,7 +49,7 @@ type MasterOption func(m *Master)
 func WithWorkerRecovery(enable bool) MasterOption {
 	return func(m *Master) {
 		if enable {
-			m.workerPanic = make(chan string)
+			m.workerPanic = make(chan string, 1)
 			m.stopRecoveryRoutine = make(chan interface{})
 
 			go m.RecoveryWorker()
