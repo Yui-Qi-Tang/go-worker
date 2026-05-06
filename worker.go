@@ -183,10 +183,7 @@ func (w *Worker) start() error {
 			if err := recover(); err != nil {
 				w.stop()
 
-				if w.Recovery != nil {
-					// Recovery must not wait for status observers; tasks can enter through Worker.Task directly.
-					w.Recovery <- w.recoveryIdentity()
-				}
+				w.notifyRecovery()
 
 				w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", err))
 				w.logger.Sync()
@@ -298,6 +295,18 @@ func (w *Worker) recoveryIdentity() string {
 		return w.identity()
 	}
 	return w.recoveryID
+}
+
+func (w *Worker) notifyRecovery() {
+	if w.Recovery == nil {
+		return
+	}
+
+	// Panic status must reach Worker.Do even when recovery already has a pending signal.
+	select {
+	case w.Recovery <- w.recoveryIdentity():
+	default:
+	}
 }
 
 func (w *Worker) isStopped() bool {
