@@ -66,3 +66,20 @@ func TestMasterDispatchReturnsTaskErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestMasterDispatchNilTaskReturnsTaskErrorBeforePoolState(t *testing.T) {
+	ms, err := NewMaster()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Stop()
+
+	if got := ms.Dispatch(nil); got != ErrWorkerNilTask {
+		t.Fatalf("Dispatch(nil) error = %v, want %v", got, ErrWorkerNilTask)
+	}
+
+	var typedNil *phaseErrorTask
+	if got := ms.Dispatch(typedNil); got != ErrWorkerNilTask {
+		t.Fatalf("Dispatch(typed nil) error = %v, want %v", got, ErrWorkerNilTask)
+	}
+}

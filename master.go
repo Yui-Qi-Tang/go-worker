@@ -204,13 +204,13 @@ func (m *Master) Dispatch(task Task) error {
 
 // Schedule schedules task to worker
 func (m *Master) Schedule(task Task) error {
+	if isNilTask(task) {
+		return ErrWorkerNilTask
+	}
 
 	for {
 		if err := m.scheduleReadyError(); err != nil {
 			return err
-		}
-		if isNilTask(task) {
-			return ErrWorkerNilTask
 		}
 
 		select {
