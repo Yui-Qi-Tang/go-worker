@@ -235,7 +235,7 @@ func (m *Master) Schedule(task Task) error {
 			}
 
 			if err == ErrWorkerPanic && m.workerPanic != nil {
-				m.recoverWorker(worker.identity())
+				m.recoverWorker(worker.recoveryIdentity())
 			}
 			if err == ErrWorkerStopped || (err == ErrWorkerPanic && m.workerPanic == nil) {
 				m.removeWorker(worker.identity(), false)
@@ -341,7 +341,7 @@ func (m *Master) recoverWorker(id string) bool {
 	defer m.Unlock()
 
 	for i, oldWorker := range m.Pool {
-		if oldWorker.identity() == id {
+		if oldWorker.recoveryIdentity() == id {
 			m.Pool = append(m.Pool[:i], m.Pool[i+1:]...)
 
 			if m.stopped {
@@ -349,7 +349,7 @@ func (m *Master) recoverWorker(id string) bool {
 				return true
 			}
 
-			worker, err := NewWorker(WithRecovery(true))
+			worker, err := NewWorker(WithName(oldWorker.identity()), WithRecovery(true))
 			if err != nil {
 				m.markWorkerPoolEmptyLocked()
 				return true

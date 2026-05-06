@@ -22,12 +22,11 @@ func TestMasterRecoversDirectWorkerTaskPanicWithoutStatusObserver(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	oldName := worker.Name
 	go func() {
 		worker.Task <- panicErr
 	}()
 
-	waitForWorkerReplacement(t, ms, oldName)
+	waitForWorkerReplacement(t, ms, worker)
 
 	if workerInPool(ms, worker) {
 		t.Fatal("master left the directly panicked worker in the pool")

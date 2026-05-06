@@ -58,6 +58,8 @@ type Worker struct {
 	Name string
 	id   string
 
+	recoveryID string
+
 	logger *zap.Logger
 
 	// Recovery TODO: use a special type for this channel, it's between master and worker
@@ -127,6 +129,7 @@ func NewWorker(opts ...Option) (*Worker, error) {
 	}
 
 	w.Name = name // default name
+	w.recoveryID = name
 
 	config := zap.NewProductionConfig()
 	config.Encoding = "console"
@@ -182,7 +185,7 @@ func (w *Worker) start() error {
 
 				if w.Recovery != nil {
 					// Recovery must not wait for status observers; tasks can enter through Worker.Task directly.
-					w.Recovery <- w.identity()
+					w.Recovery <- w.recoveryIdentity()
 				}
 
 				w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", err))
@@ -288,6 +291,13 @@ func (w *Worker) identity() string {
 		return w.Name
 	}
 	return w.id
+}
+
+func (w *Worker) recoveryIdentity() string {
+	if w.recoveryID == "" {
+		return w.identity()
+	}
+	return w.recoveryID
 }
 
 func (w *Worker) isStopped() bool {

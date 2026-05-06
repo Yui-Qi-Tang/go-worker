@@ -49,11 +49,11 @@ func TestMasterRecoveryStartsReplacementWorker(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		oldName := currentWorkerName(t, ms)
+		oldWorker := currentWorker(t, ms)
 		if err := ms.Schedule(recoveryTask{id: "panic-recovery", panicInInit: true}); err != ErrWorkerPanic {
 			t.Fatalf("panic task error = %v, want %v", err, ErrWorkerPanic)
 		}
-		waitForWorkerReplacement(t, ms, oldName)
+		waitForWorkerReplacement(t, ms, oldWorker)
 
 		var runs int32
 		if err := scheduleWithTimeout(t, ms, recoveryTask{id: "normal-after-recovery", runs: &runs}); err != nil {
@@ -65,7 +65,7 @@ func TestMasterRecoveryStartsReplacementWorker(t *testing.T) {
 	}
 }
 
-func currentWorkerName(t *testing.T, ms *Master) string {
+func currentWorker(t *testing.T, ms *Master) *Worker {
 	t.Helper()
 
 	ms.RLock()
@@ -75,10 +75,10 @@ func currentWorkerName(t *testing.T, ms *Master) string {
 		t.Fatal("master has no workers")
 	}
 
-	return ms.Pool[0].Name
+	return ms.Pool[0]
 }
 
-func waitForWorkerReplacement(t *testing.T, ms *Master, oldName string) {
+func waitForWorkerReplacement(t *testing.T, ms *Master, oldWorker *Worker) {
 	t.Helper()
 
 	deadline := time.After(time.Second)
@@ -88,9 +88,9 @@ func waitForWorkerReplacement(t *testing.T, ms *Master, oldName string) {
 	for {
 		select {
 		case <-deadline:
-			t.Fatalf("timed out waiting for worker %s to be replaced", oldName)
+			t.Fatalf("timed out waiting for worker %p to be replaced", oldWorker)
 		case <-tick.C:
-			if currentWorkerName(t, ms) != oldName {
+			if !workerInPool(ms, oldWorker) {
 				return
 			}
 		}

@@ -25,11 +25,11 @@ func TestMasterRecoveryDoesNotStartDuplicateReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	oldName := currentWorkerName(t, ms)
+	oldWorker := currentWorker(t, ms)
 	if got := dispatchWithTimeout(t, ms, panicErr); got != ErrWorkerPanic {
 		t.Fatalf("panic Dispatch() error = %v, want %v", got, ErrWorkerPanic)
 	}
-	waitForWorkerReplacement(t, ms, oldName)
+	waitForWorkerReplacement(t, ms, oldWorker)
 
 	time.Sleep(20 * time.Millisecond)
 
@@ -85,6 +85,44 @@ func TestMasterRecoveryUsesWorkerIdentityAfterNameMutation(t *testing.T) {
 	}
 }
 
+func TestMasterRecoveryPreservesRegisteredWorkerIdentity(t *testing.T) {
+	ms, err := NewMaster(WithWorkerRecovery(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Stop()
+
+	worker, err := NewWorker(WithName("stable-recovery-worker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ms.AddWorker(worker); err != nil {
+		t.Fatal(err)
+	}
+	if err := ms.WakeAllWorkersUp(); err != nil {
+		t.Fatal(err)
+	}
+
+	registeredIdentity := worker.identity()
+	if got := dispatchWithTimeout(t, ms, panicErr); got != ErrWorkerPanic {
+		t.Fatalf("panic Dispatch() error = %v, want %v", got, ErrWorkerPanic)
+	}
+	waitForWorkerReplacement(t, ms, worker)
+
+	duplicate, err := NewWorker(WithName(registeredIdentity))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer duplicate.Stop()
+
+	if got := ms.AddWorker(duplicate); got != ErrMasterDuplicateWorkerName {
+		t.Fatalf("AddWorker(duplicate after recovery) error = %v, want %v", got, ErrMasterDuplicateWorkerName)
+	}
+	if got := ms.GetWorkers(); got != 1 {
+		t.Fatalf("workers after rejected duplicate recovery identity = %d, want 1", got)
+	}
+}
+
 func TestMasterAddWorkerAttachesRecoveryChannel(t *testing.T) {
 	ms, err := NewMaster(WithWorkerRecovery(true))
 	if err != nil {
@@ -111,7 +149,6 @@ func TestMasterAddWorkerAttachesRecoveryChannel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	oldName := worker.Name
 	go func() {
 		worker.Task <- panicErr
 	}()
@@ -119,7 +156,7 @@ func TestMasterAddWorkerAttachesRecoveryChannel(t *testing.T) {
 		t.Fatalf("worker status = %s, want %s", got, workerPanic)
 	}
 
-	waitForWorkerReplacement(t, ms, oldName)
+	waitForWorkerReplacement(t, ms, worker)
 
 	if workerInPool(ms, worker) {
 		t.Fatal("master left the panicked worker in the pool")

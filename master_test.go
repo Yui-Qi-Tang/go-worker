@@ -124,7 +124,7 @@ func TestMasterRecoversPanickedWorkerBeforeScheduleReturns(t *testing.T) {
 	}
 
 	ms.RLock()
-	originalWorker := ms.Pool[0].Name
+	originalWorker := ms.Pool[0]
 	ms.RUnlock()
 
 	if err := ms.Schedule(panicErr); err != ErrWorkerPanic {
@@ -136,11 +136,11 @@ func TestMasterRecoversPanickedWorkerBeforeScheduleReturns(t *testing.T) {
 	}
 
 	ms.RLock()
-	recoveredWorker := ms.Pool[0].Name
+	recoveredWorker := ms.Pool[0]
 	ms.RUnlock()
 
 	if recoveredWorker == originalWorker {
-		t.Fatalf("panic worker stayed in pool: %s", recoveredWorker)
+		t.Fatalf("panic worker stayed in pool: %p", recoveredWorker)
 	}
 
 	if err := ms.Schedule(normal); err != nil {
