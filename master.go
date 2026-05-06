@@ -274,37 +274,66 @@ func (m *Master) removeWorker(name string, expectRecovery bool) bool {
 }
 
 func (m *Master) recoverWorker(name string) bool {
+	m.Lock()
+	found := false
+	for i, oldWorker := range m.Pool {
+		if oldWorker.Name == name {
+			m.Pool = append(m.Pool[:i], m.Pool[i+1:]...)
+			found = true
+			break
+		}
+	}
+	if !found {
+		m.Unlock()
+		return false
+	}
+	if m.stopped {
+		if len(m.Pool) == 0 {
+			m.workerAdded = false
+		}
+		m.Unlock()
+		return true
+	}
+	m.Unlock()
+
 	worker, err := NewWorker(WithRecovery(true))
 	if err != nil {
-		m.removeWorker(name, false)
+		m.finishFailedRecovery()
 		return true
 	}
 
 	if err := worker.Start(); err != nil {
-		m.removeWorker(name, false)
+		m.finishFailedRecovery()
 		return true
 	}
 
 	m.Lock()
 	defer m.Unlock()
 
-	for i, oldWorker := range m.Pool {
-		if oldWorker.Name == name {
-			m.Pool = append(m.Pool[:i], m.Pool[i+1:]...)
-			if m.stopped {
-				worker.Stop()
-				if len(m.Pool) == 0 {
-					m.workerAdded = false
-				}
-				return true
-			}
-			m.addWorkerLocked(worker)
-			return true
+	if m.stopped {
+		worker.Stop()
+		if len(m.Pool) == 0 {
+			m.workerAdded = false
 		}
+		return true
 	}
 
-	worker.Stop()
-	return false
+	if uint(len(m.Pool)+1) > maxPoolSize {
+		worker.Stop()
+		return true
+	}
+
+	m.addWorkerLocked(worker)
+	return true
+}
+
+func (m *Master) finishFailedRecovery() {
+	m.Lock()
+	defer m.Unlock()
+
+	if len(m.Pool) == 0 {
+		m.workerAdded = false
+	}
 }
 
 // GetWorkers returns number of workers
