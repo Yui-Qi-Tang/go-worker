@@ -87,6 +87,42 @@ func TestMasterWakeAllWorkersUpRemovesStoppedWorker(t *testing.T) {
 	}
 }
 
+func TestMasterWakeAllWorkersUpStartsRemainingWorkersAfterStoppedWorker(t *testing.T) {
+	ms, err := NewMaster()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms.WorkerQueue = make(chan *Worker, 2)
+	defer ms.Stop()
+
+	stopped, err := NewWorker(WithName("stopped-wakeup-worker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid, err := NewWorker(WithName("valid-wakeup-worker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ms.AddWorker(stopped); err != nil {
+		t.Fatal(err)
+	}
+	if err := ms.AddWorker(valid); err != nil {
+		t.Fatal(err)
+	}
+
+	stopped.Stop()
+	if got := ms.WakeAllWorkersUp(); got != ErrWorkerStopped {
+		t.Fatalf("WakeAllWorkersUp() error = %v, want %v", got, ErrWorkerStopped)
+	}
+	if got := ms.GetWorkers(); got != 1 {
+		t.Fatalf("workers after stopped worker wakeup = %d, want 1", got)
+	}
+	if got := dispatchWithTimeout(t, ms, normal); got != nil {
+		t.Fatalf("Dispatch() after stopped worker wakeup error = %v, want nil", got)
+	}
+}
+
 func TestMasterAddWorkerRejectsStoppedWorkerWithoutPoolMutation(t *testing.T) {
 	ms, err := NewMaster()
 	if err != nil {

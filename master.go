@@ -384,7 +384,8 @@ func (m *Master) WakeAllWorkersUp() error {
 		return ErrMasterWorkerPoolIsEmpty
 	}
 
-	for i := 0; i < len(m.Pool); i++ {
+	var wakeErr error
+	for i := 0; i < len(m.Pool); {
 		w := m.Pool[i]
 		if err := w.Start(); err != nil && err != ErrWorkerAlreadyStarted {
 			if err == ErrWorkerStopped {
@@ -392,12 +393,15 @@ func (m *Master) WakeAllWorkersUp() error {
 				if len(m.Pool) == 0 {
 					m.workerAdded = false
 				}
+				wakeErr = err
+				continue
 			}
 			return err
 		}
+		i++
 	}
 
-	return nil
+	return wakeErr
 }
 
 // RecoveryWorker re-creates a new worker when receives worker panic
