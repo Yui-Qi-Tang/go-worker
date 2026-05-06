@@ -47,15 +47,17 @@ const maxPoolSize uint = 1 << 8
 // MasterOption is an option function form for master
 type MasterOption func(m *Master)
 
-// WithWorkerRecovery starts a routine for killing panic worker & re-create a new worker
+// WithWorkerRecovery configures panic worker recovery.
 func WithWorkerRecovery(enable bool) MasterOption {
 	return func(m *Master) {
-		if enable {
-			m.workerPanic = make(chan string, 1)
-			m.stopRecoveryRoutine = make(chan interface{})
-
-			go m.RecoveryWorker()
+		if !enable {
+			m.workerPanic = nil
+			m.stopRecoveryRoutine = nil
+			return
 		}
+
+		m.workerPanic = make(chan string, 1)
+		m.stopRecoveryRoutine = make(chan interface{})
 	}
 }
 
@@ -76,6 +78,10 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 
 	for _, opt := range opts {
 		opt(master)
+	}
+
+	if master.isRecoveryInitialized() {
+		go master.RecoveryWorker()
 	}
 
 	return master, nil
