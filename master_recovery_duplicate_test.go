@@ -85,6 +85,73 @@ func TestMasterRecoveryUsesWorkerIdentityAfterNameMutation(t *testing.T) {
 	}
 }
 
+func TestMasterAddWorkerAttachesRecoveryChannel(t *testing.T) {
+	ms, err := NewMaster(WithWorkerRecovery(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Stop()
+
+	worker, err := NewWorker(WithName("manual-recovery-worker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ms.AddWorker(worker); err != nil {
+		t.Fatal(err)
+	}
+	if worker.Recovery != ms.workerPanic {
+		t.Fatal("AddWorker did not attach the master recovery channel")
+	}
+	if got := receiveQueuedWorker(t, ms); got != worker {
+		t.Fatalf("queued worker = %p, want added worker %p", got, worker)
+	}
+
+	if err := ms.WakeAllWorkersUp(); err != nil {
+		t.Fatal(err)
+	}
+
+	oldName := worker.Name
+	go func() {
+		worker.Task <- panicErr
+	}()
+	if got := worker.waitStatus(); got != workerPanic {
+		t.Fatalf("worker status = %s, want %s", got, workerPanic)
+	}
+
+	waitForWorkerReplacement(t, ms, oldName)
+
+	if workerInPool(ms, worker) {
+		t.Fatal("master left the panicked worker in the pool")
+	}
+	if got := dispatchWithTimeout(t, ms, normal); got != nil {
+		t.Fatalf("replacement worker Dispatch() error = %v, want nil", got)
+	}
+}
+
+func TestMasterAddWorkerClearsRecoveryChannelWhenDisabled(t *testing.T) {
+	ms, err := NewMaster()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Stop()
+
+	worker, err := NewWorker(WithName("orphan-recovery-worker"), WithRecovery(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if worker.Recovery == nil {
+		t.Fatal("test worker should start with a recovery channel")
+	}
+
+	if err := ms.AddWorker(worker); err != nil {
+		t.Fatal(err)
+	}
+	if worker.Recovery != nil {
+		t.Fatal("AddWorker kept an orphan recovery channel on a non-recovery master")
+	}
+}
+
 func receiveQueuedWorker(t *testing.T, ms *Master) *Worker {
 	t.Helper()
 

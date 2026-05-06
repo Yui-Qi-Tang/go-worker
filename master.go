@@ -123,10 +123,8 @@ func (m *Master) hasWorkerNameLocked(name string) bool {
 }
 
 func (m *Master) addWorkerLocked(worker *Worker) {
-	// attach worker to master recovery chan
-	if worker.Recovery != nil && m.workerPanic != nil {
-		worker.Recovery = m.workerPanic
-	}
+	// Master owns recovery signaling after a worker enters the pool.
+	worker.Recovery = m.workerPanic
 
 	m.Pool = append(m.Pool, worker)
 	m.workerAdded = true
