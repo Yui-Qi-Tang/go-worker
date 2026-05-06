@@ -17,6 +17,24 @@ func TestWorkerMethodsRejectUninitializedWorker(t *testing.T) {
 	})
 }
 
+func TestNilWorkerMethodsRejectUninitializedWorker(t *testing.T) {
+	var w *Worker
+
+	assertNotPanics(t, func() {
+		if got := w.Start(); got != ErrWorkerNotInitialized {
+			t.Fatalf("Start() error = %v, want %v", got, ErrWorkerNotInitialized)
+		}
+	})
+	assertNotPanics(t, func() {
+		if got := w.Do(phaseErrorTask{id: "nil-worker"}); got != ErrWorkerNotInitialized {
+			t.Fatalf("Do() error = %v, want %v", got, ErrWorkerNotInitialized)
+		}
+	})
+	assertNotPanics(t, func() {
+		w.Stop()
+	})
+}
+
 func assertNotPanics(t *testing.T, fn func()) {
 	t.Helper()
 

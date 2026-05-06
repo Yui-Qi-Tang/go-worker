@@ -160,6 +160,10 @@ func (w *Worker) Start() error {
 }
 
 func (w *Worker) start() error {
+	if w == nil {
+		return ErrWorkerNotInitialized
+	}
+
 	w.Lock()
 	if !w.isInitialized() {
 		w.Unlock()
@@ -328,7 +332,7 @@ func (w *Worker) isStarted() bool {
 }
 
 func (w *Worker) isInitialized() bool {
-	return w.Task != nil && w.Quit != nil && w.status != nil && w.logger != nil
+	return w != nil && w.Task != nil && w.Quit != nil && w.status != nil && w.logger != nil
 }
 
 // waitStatus returns status of worker
@@ -371,6 +375,10 @@ func workerStatusError(status string) error {
 }
 
 func (w *Worker) readyError() error {
+	if w == nil {
+		return ErrWorkerNotInitialized
+	}
+
 	w.Lock()
 	defer w.Unlock()
 
