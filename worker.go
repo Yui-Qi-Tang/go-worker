@@ -317,6 +317,11 @@ func (w *Worker) notifyRecovery() {
 		return
 	}
 
+	defer func() {
+		// Recovery is exported, so callers can close it. Treat that as recovery disabled.
+		_ = recover()
+	}()
+
 	// Panic status must reach Worker.Do even when recovery already has a pending signal.
 	select {
 	case w.Recovery <- w.recoveryIdentity():

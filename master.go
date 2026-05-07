@@ -489,7 +489,10 @@ func (m *Master) RecoveryWorker() {
 
 	for {
 		select {
-		case id := <-m.workerPanic:
+		case id, ok := <-m.workerPanic:
+			if !ok {
+				return
+			}
 			m.recoverWorker(id)
 		case <-m.stopRecoveryRoutine:
 			return
