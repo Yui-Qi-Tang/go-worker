@@ -107,7 +107,12 @@ func WithName(name string) Option {
 // if no upstream exists, don't create worker with this option
 func WithRecovery(ok bool) Option {
 	return func(w *Worker) {
-		if ok {
+		if !ok {
+			w.Recovery = nil
+			return
+		}
+
+		if w.Recovery == nil {
 			w.Recovery = make(chan string, 1)
 		}
 	}
