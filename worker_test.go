@@ -109,7 +109,7 @@ func TestWorkerForClient(t *testing.T) {
 		},
 		{
 			task:   normalErr,
-			answer: nil,
+			answer: ErrWorkerTaskInit,
 		},
 		{
 			task:   panicErr,

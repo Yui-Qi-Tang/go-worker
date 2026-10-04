@@ -60,7 +60,7 @@ func TestAtomicType(t *testing.T) {
 		t.Fatalf("wrong on number of workers: %d, expected: %d", ms.GetWorkers(), workers)
 	}
 
-	for i := 0; i < taskCounts; i++ {
+	for range taskCounts {
 		ms.Schedule(testvar) // normal is a test case from worker_test
 	}
 
@@ -98,7 +98,7 @@ func TestMasterWithNormalTask(t *testing.T) {
 		t.Fatalf("wrong on number of workers: %d, expected: %d", ms.GetWorkers(), workerNums)
 	}
 
-	for i := 0; i < taskConuts; i++ {
+	for range taskConuts {
 		ms.Schedule(normal) // normal is a test case from worker_test
 	}
 
@@ -106,4 +106,50 @@ func TestMasterWithNormalTask(t *testing.T) {
 
 	t.Log("... Passed")
 
+}
+
+func TestMasterRecoversPanickedWorkerBeforeScheduleReturns(t *testing.T) {
+	ms, err := NewMaster(withBufferedRecoverySignalOnly())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Stop()
+
+	if err := ms.AddWorkers(1); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ms.WakeAllWorkersUp(); err != nil {
+		t.Fatal(err)
+	}
+
+	ms.RLock()
+	originalWorker := ms.Pool[0]
+	ms.RUnlock()
+
+	if err := ms.Schedule(panicErr); err != ErrWorkerPanic {
+		t.Fatalf("wrong schedule error: %v, expected: %v", err, ErrWorkerPanic)
+	}
+
+	if workers := ms.GetWorkers(); workers != 1 {
+		t.Fatalf("wrong number of workers after recovery: %d, expected: %d", workers, 1)
+	}
+
+	ms.RLock()
+	recoveredWorker := ms.Pool[0]
+	ms.RUnlock()
+
+	if recoveredWorker == originalWorker {
+		t.Fatalf("panic worker stayed in pool: %p", recoveredWorker)
+	}
+
+	if err := ms.Schedule(normal); err != nil {
+		t.Fatalf("recovered worker should process tasks: %v", err)
+	}
+}
+
+func withBufferedRecoverySignalOnly() MasterOption {
+	return func(m *Master) {
+		m.workerPanic = make(chan string, 1)
+	}
 }

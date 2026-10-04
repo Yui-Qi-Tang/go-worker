@@ -1,28 +1,33 @@
 name: worker test
 on:
+  pull_request:
   push:
     branches:
       - master
       - develop
       - feature/*
+      - codex/**
+
+permissions:
+  contents: read
+
 jobs:
-  lint:
-    strategy:
-      matrix:
-        platform: [ubuntu-latest]
-    runs-on: ${{ matrix.platform }}
-    container: golang:1.14.7
+  test:
+    runs-on: ubuntu-latest
     steps:
-
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v7
 
-      - name: test
-        run: |
-          go test ./...
-          
-      - name: test race
-        run: |
-          go test ./... -race=1
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
 
-        
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test with race detector
+        run: go test -race ./...
