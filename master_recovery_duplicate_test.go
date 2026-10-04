@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -205,12 +206,7 @@ func workerInPool(ms *Master, target *Worker) bool {
 	ms.RLock()
 	defer ms.RUnlock()
 
-	for _, worker := range ms.Pool {
-		if worker == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ms.Pool, target)
 }
 
 func captureStderr(t *testing.T) func() string {

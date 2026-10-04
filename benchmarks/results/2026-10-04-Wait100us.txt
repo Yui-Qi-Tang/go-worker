@@ -1,0 +1,46 @@
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkPool/Wait100us/workers=1/channel-8         	    1000	    119105 ns/op	      8396 tasks/s	       1 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8         	    1000	    130284 ns/op	      7676 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8         	    1000	    120233 ns/op	      8317 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8         	    1000	    117932 ns/op	      8479 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8         	    1000	    117539 ns/op	      8508 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8       	    1000	    121230 ns/op	      8249 tasks/s	    1079 B/op	      13 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8       	    1000	    125145 ns/op	      7991 tasks/s	    1077 B/op	      13 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8       	    1000	    119700 ns/op	      8354 tasks/s	    1075 B/op	      13 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8       	    1000	    119179 ns/op	      8391 tasks/s	    1075 B/op	      13 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8       	    1000	    118702 ns/op	      8424 tasks/s	    1076 B/op	      13 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8            	    1000	    117623 ns/op	      8502 tasks/s	       2 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8            	    1000	    117922 ns/op	      8480 tasks/s	       3 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8            	    1000	    122208 ns/op	      8183 tasks/s	       2 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8            	    1000	    117499 ns/op	      8511 tasks/s	       2 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8            	    1000	    118000 ns/op	      8475 tasks/s	       2 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8            	    1000	    117607 ns/op	      8503 tasks/s	     241 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8            	    1000	    117810 ns/op	      8488 tasks/s	     241 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8            	    1000	    117788 ns/op	      8490 tasks/s	     241 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8            	    1000	    117865 ns/op	      8484 tasks/s	     241 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8            	    1000	    118010 ns/op	      8474 tasks/s	     241 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8         	    1000	     14692 ns/op	     68062 tasks/s	       2 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8         	    1000	     14676 ns/op	     68139 tasks/s	       3 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8         	    1000	     14632 ns/op	     68341 tasks/s	       1 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8         	    1000	     14674 ns/op	     68147 tasks/s	       2 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8         	    1000	     14755 ns/op	     67775 tasks/s	       2 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8       	    1000	     15119 ns/op	     66144 tasks/s	    1116 B/op	      13 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8       	    1000	     15114 ns/op	     66165 tasks/s	    1107 B/op	      13 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8       	    1000	     15087 ns/op	     66282 tasks/s	    1088 B/op	      13 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8       	    1000	     15036 ns/op	     66507 tasks/s	    1104 B/op	      13 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8       	    1000	     15077 ns/op	     66327 tasks/s	    1089 B/op	      13 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8            	    1000	     14798 ns/op	     67578 tasks/s	       4 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8            	    1000	     14671 ns/op	     68160 tasks/s	       4 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8            	    1000	     14663 ns/op	     68199 tasks/s	       8 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8            	    1000	     14700 ns/op	     68027 tasks/s	       4 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8            	    1000	     14766 ns/op	     67725 tasks/s	       4 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8            	    1000	     14700 ns/op	     68029 tasks/s	     241 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8            	    1000	     14704 ns/op	     68008 tasks/s	     241 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8            	    1000	     14657 ns/op	     68225 tasks/s	     241 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8            	    1000	     14654 ns/op	     68243 tasks/s	     241 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8            	    1000	     14694 ns/op	     68056 tasks/s	     241 B/op	       6 allocs/op
+PASS
+ok  	example.com/go-worker-benchmarks	2.854s

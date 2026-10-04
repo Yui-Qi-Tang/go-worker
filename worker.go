@@ -3,10 +3,11 @@
 package worker
 
 import (
-	"reflect"
+	"context"
+	"errors"
+	"fmt"
+	"runtime/debug"
 	"sync"
-
-	"github.com/pkg/errors"
 
 	guuid "github.com/google/uuid"
 	"go.uber.org/zap"
@@ -29,6 +30,8 @@ const (
 )
 
 var (
+	// ErrInvalidLogger indicates an explicitly configured nil logger.
+	ErrInvalidLogger = errors.New("logger must not be nil")
 	// ErrWorkerTaskInit is denoted the worker processes job but get error in Init phase
 	ErrWorkerTaskInit error = errors.New("worker got error from executing job in Init phase")
 	// ErrWorkerTaskRun is denoted the worker processes job but get error in Run phase
@@ -59,38 +62,26 @@ type Worker struct {
 	id   string
 
 	recoveryID string
+	// recoveryBudget is shared across replacements and guarded by the master.
+	recoveryBudget *restartBudget
 
-	logger *zap.Logger
+	logger           *zap.Logger
+	loggerConfigured bool
+	metrics          taskMetrics
+	ownerMetrics     *taskMetrics
+	done             chan struct{}
+	finishOnce       sync.Once
 
 	// Recovery TODO: use a special type for this channel, it's between master and worker
 	Recovery chan string
-	Quit     chan interface{}
+	Quit     chan any
 
 	status chan string
 
 	started  bool
 	stopped  bool
+	panicked bool
 	stopOnce sync.Once
-}
-
-type taskRequest struct {
-	Task
-	status chan string
-}
-
-func newTaskRequest(task Task) *taskRequest {
-	return &taskRequest{
-		Task:   task,
-		status: make(chan string, 1),
-	}
-}
-
-func (r *taskRequest) reportStatus(status string) {
-	r.status <- status
-}
-
-func (r *taskRequest) waitStatus() string {
-	return <-r.status
 }
 
 // Option is a functional option for worker setup
@@ -100,6 +91,15 @@ type Option func(w *Worker)
 func WithName(name string) Option {
 	return func(w *Worker) {
 		w.Name = name
+	}
+}
+
+// WithLogger supplies the worker logger. The caller owns the logger and its
+// final Sync; the worker never closes it. A nil logger is rejected.
+func WithLogger(logger *zap.Logger) Option {
+	return func(w *Worker) {
+		w.logger = logger
+		w.loggerConfigured = true
 	}
 }
 
@@ -118,43 +118,34 @@ func WithRecovery(ok bool) Option {
 	}
 }
 
-// NewWorker returns worker
+// NewWorker returns an initialized, unstarted worker.
 func NewWorker(opts ...Option) (*Worker, error) {
-
+	name := guuid.New().String()
 	w := &Worker{
-		Quit:   make(chan interface{}),
-		Task:   make(chan Task),
-		status: make(chan string, 1),
+		Name: name, recoveryID: name,
+		Quit: make(chan any), Task: make(chan Task),
+		status: make(chan string, 1), done: make(chan struct{}),
 	}
-
-	uuid := guuid.New()
-	name := uuid.String()
-	if len(name) == 0 {
-		return nil, errors.New("new worker error: invalid uuid(len==0)")
-	}
-
-	w.Name = name // default name
-	w.recoveryID = name
-
-	config := zap.NewProductionConfig()
-	config.Encoding = "console"
-	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	logger, err := config.Build()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create logger for worker")
-	}
-
-	w.logger = logger
-
 	for _, opt := range opts {
 		opt(w)
 	}
-
 	if w.Name == "" {
 		return nil, ErrWorkerInvalidName
 	}
+	if w.loggerConfigured && w.logger == nil {
+		return nil, ErrInvalidLogger
+	}
+	if w.logger == nil {
+		config := zap.NewProductionConfig()
+		config.Encoding = "console"
+		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		logger, err := config.Build()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create logger for worker: %w", err)
+		}
+		w.logger = logger
+	}
 	w.id = w.Name
-
 	return w, nil
 }
 
@@ -165,10 +156,9 @@ func (w *Worker) Start() error {
 }
 
 func (w *Worker) start() error {
-	if w == nil {
+	if !w.isInitialized() {
 		return ErrWorkerNotInitialized
 	}
-
 	w.Lock()
 	if !w.isInitialized() {
 		w.Unlock()
@@ -185,101 +175,92 @@ func (w *Worker) start() error {
 	w.started = true
 	w.Unlock()
 
-	go func() {
-		var activeTask Task
+	go w.run()
+	return nil
+}
 
-		defer func() {
-			if err := recover(); err != nil {
-				w.stop()
-
-				w.notifyRecovery()
-
-				w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", err))
-				w.logger.Sync()
-				w.reportTaskStatus(activeTask, workerPanic)
-				return
+func (w *Worker) run() {
+	var activeTask Task
+	var result Result
+	var owner *taskMetrics
+	active := false
+	defer w.finishOnce.Do(func() { close(w.done) })
+	defer func() {
+		reason := recover()
+		// active also handles runtime.Goexit and legacy panic(nil), which would
+		// otherwise abandon a caller that is waiting for its task result.
+		if reason != nil || active {
+			result.Err = ErrWorkerPanic
+			result.PanicValue = reason
+			result.PanicStack = string(debug.Stack())
+			if cause, ok := reason.(error); ok {
+				result.Cause = cause
 			}
-		}()
-
-		w.logger.Info(workerEventStart, zap.String("worker", w.Name))
-
-		for {
-			select {
-			case <-w.Quit:
-				w.markStopped()
-				w.logger.Info(workerEventQuit, zap.String("worker", w.Name))
-				w.logger.Sync()
-				return
-			case task, ok := <-w.Task:
-				if !ok {
-					w.stop()
-					w.logger.Info(workerEventQuit, zap.String("worker", w.Name))
-					w.logger.Sync()
-					return
-				}
-				activeTask = task
-				if isNilTask(task) {
-					w.logger.Error(workerErrNil, zap.String("worker", w.Name))
-					w.reportTaskStatus(task, workerErrNil)
-					activeTask = nil
-					break
-				}
-
-				w.logger.Info(
-					workerEventReceived,
-					zap.String("worker", w.Name),
-					zap.String("task_name", task.ID()),
-				)
-
-				if err := task.Init(); err != nil {
-					w.logger.Error(
-						workerErrInit,
-						zap.String("worker", w.Name),
-						zap.String("task_name", task.ID()),
-						zap.Any("reason", err),
-					)
-					w.reportTaskStatus(task, workerErrInit)
-					activeTask = nil
-					break
-				}
-
-				if err := task.Run(); err != nil {
-					w.logger.Error(
-						workerErrRun,
-						zap.String("worker", w.Name),
-						zap.String("task_name", task.ID()),
-						zap.Any("reason", err),
-					)
-					w.reportTaskStatus(task, workerErrRun)
-					activeTask = nil
-					break
-				}
-
-				if err := task.Done(); err != nil {
-					w.logger.Error(
-						workerErrDone,
-						zap.String("worker", w.Name),
-						zap.String("task_name", task.ID()),
-						zap.Any("reason", err),
-					)
-					w.reportTaskStatus(task, workerErrDone)
-					activeTask = nil
-					break
-				}
-
-				w.logger.Info(
-					workerEventDone,
-					zap.String("worker", w.Name),
-					zap.String("task_id", task.ID()),
-				)
-				w.reportTaskStatus(task, workerEventDone)
-				activeTask = nil
+			w.Lock()
+			w.panicked = true
+			w.Unlock()
+			w.stop()
+			if active {
+				w.finishTask(owner, result)
+				w.reportTaskResult(activeTask, result)
 			}
+			w.notifyRecovery()
+			w.logPanic(reason)
 		}
-
+		w.markStopped()
 	}()
 
-	return nil
+	w.logger.Info(workerEventStart, zap.String("worker", w.Name))
+	for {
+		select {
+		case <-w.Quit:
+			w.logger.Info(workerEventQuit, zap.String("worker", w.Name))
+			if !w.loggerConfigured {
+				_ = w.logger.Sync()
+			}
+			return
+		case task, ok := <-w.Task:
+			if !ok {
+				w.stop()
+				return
+			}
+			w.Lock()
+			if w.stopped {
+				w.Unlock()
+				w.reportTaskResult(task, Result{Err: ErrWorkerStopped})
+				return
+			}
+			owner = w.ownerMetrics
+			w.metrics.begin()
+			if owner != nil {
+				owner.begin()
+			}
+			w.Unlock()
+			activeTask, active, result = task, true, Result{}
+			w.executeTask(task, &result)
+			w.finishTask(owner, result)
+			active = false
+			w.reportTaskResult(task, result)
+			activeTask = nil
+		}
+	}
+}
+
+// Diagnostics must not raise a second panic while the worker is unwinding.
+// The original failure is already available through the task result.
+func (w *Worker) logPanic(reason any) {
+	defer func() { _ = recover() }()
+	w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", reason))
+	if !w.loggerConfigured {
+		_ = w.logger.Sync()
+	}
+}
+
+func (w *Worker) finishTask(owner *taskMetrics, result Result) {
+	w.metrics.finish(result)
+	if owner != nil {
+		owner.finish(result)
+	}
 }
 
 // Stop terminates worker. It is safe to call more than once.
@@ -293,8 +274,14 @@ func (w *Worker) stop() {
 	}
 
 	w.stopOnce.Do(func() {
-		w.markStopped()
+		w.Lock()
+		w.stopped = true
+		started := w.started
 		close(w.Quit)
+		w.Unlock()
+		if !started {
+			w.finishOnce.Do(func() { close(w.done) })
+		}
 	})
 }
 
@@ -313,7 +300,10 @@ func (w *Worker) recoveryIdentity() string {
 }
 
 func (w *Worker) notifyRecovery() {
-	if w.Recovery == nil {
+	w.Lock()
+	recovery := w.Recovery
+	w.Unlock()
+	if recovery == nil {
 		return
 	}
 
@@ -324,7 +314,7 @@ func (w *Worker) notifyRecovery() {
 
 	// Panic status must reach Worker.Do even when recovery already has a pending signal.
 	select {
-	case w.Recovery <- w.recoveryIdentity():
+	case recovery <- w.recoveryIdentity():
 	default:
 	}
 }
@@ -335,6 +325,12 @@ func (w *Worker) isStopped() bool {
 	return w.stopped
 }
 
+func (w *Worker) didPanic() bool {
+	w.Lock()
+	defer w.Unlock()
+	return w.panicked
+}
+
 func (w *Worker) isStarted() bool {
 	w.Lock()
 	defer w.Unlock()
@@ -342,53 +338,13 @@ func (w *Worker) isStarted() bool {
 }
 
 func (w *Worker) isInitialized() bool {
-	return w != nil && w.Task != nil && w.Quit != nil && w.status != nil && w.logger != nil
-}
-
-// waitStatus returns status of worker
-func (w *Worker) waitStatus() string {
-	s := <-w.status
-	return s
-}
-
-func (w *Worker) reportTaskStatus(task Task, status string) {
-	if request, ok := task.(*taskRequest); ok {
-		request.reportStatus(status)
-		return
-	}
-
-	w.reportStatus(status)
-}
-
-func (w *Worker) reportStatus(status string) {
-	select {
-	case w.status <- status:
-	default:
-	}
-}
-
-func workerStatusError(status string) error {
-	switch status {
-	case workerPanic:
-		return ErrWorkerPanic
-	case workerErrInit:
-		return ErrWorkerTaskInit
-	case workerErrRun:
-		return ErrWorkerTaskRun
-	case workerErrDone:
-		return ErrWorkerTaskDone
-	case workerErrNil:
-		return ErrWorkerNilTask
-	default:
-		return nil
-	}
+	return w != nil && w.Task != nil && w.Quit != nil && w.status != nil && w.logger != nil && w.done != nil
 }
 
 func (w *Worker) readyError() error {
-	if w == nil {
+	if !w.isInitialized() {
 		return ErrWorkerNotInitialized
 	}
-
 	w.Lock()
 	defer w.Unlock()
 
@@ -404,55 +360,26 @@ func (w *Worker) readyError() error {
 	return nil
 }
 
-func isNilTask(task Task) bool {
-	if task == nil {
-		return true
-	}
-
-	value := reflect.ValueOf(task)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
-}
-
 func (w *Worker) markStopped() {
 	w.Lock()
 	w.stopped = true
 	w.Unlock()
 }
 
-func (w *Worker) sendTask(task Task) (err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			w.stop()
-			err = ErrWorkerStopped
-		}
-	}()
-
-	select {
-	case <-w.Quit:
-		return ErrWorkerStopped
-	case w.Task <- task:
-		return nil
+// Wait waits for this worker to exit. It does not initiate shutdown.
+func (w *Worker) Wait(ctx context.Context) error {
+	if !w.isInitialized() {
+		return ErrWorkerNotInitialized
 	}
+	return waitDone(ctx, w.done)
 }
 
-// Do processes task and returns an error when the task fails or the worker panics.
-func (w *Worker) Do(task Task) error {
-	if err := w.readyError(); err != nil {
-		return err
+// Shutdown stops accepting tasks and waits for an active task to finish.
+// A deadline limits the wait; it cannot interrupt a Task method.
+func (w *Worker) Shutdown(ctx context.Context) error {
+	if !w.isInitialized() {
+		return ErrWorkerNotInitialized
 	}
-	if isNilTask(task) {
-		return ErrWorkerNilTask
-	}
-
-	request := newTaskRequest(task)
-	if err := w.sendTask(request); err != nil {
-		return err
-	}
-
-	return workerStatusError(request.waitStatus())
+	w.Stop()
+	return w.Wait(ctx)
 }
