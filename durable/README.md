@@ -5,6 +5,9 @@ database and dispatches them through the existing `worker.Master`. It requires
 **Go 1.27.1 or newer**. Import `"yuki-tang.github.com/durable"` alongside
 `worker "yuki-tang.github.com"`.
 
+See the [storage architecture review](../docs/durable-storage-design.md) for the
+transaction boundaries, recovery rules, backend coupling, and open design decisions.
+
 Only jobs are persisted. Master/Worker state, live Task objects, goroutines, and
 contexts remain in memory. Worker panic removal and replacement keep their
 existing behavior. Each Task remains responsible for its own work and has no
