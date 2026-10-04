@@ -2,10 +2,12 @@
 
 A Go worker pool for tasks with an `Init → Run → Done` lifecycle. It supports
 synchronous execution, a bounded asynchronous queue, structured results,
-graceful shutdown, and optional worker replacement after a panic.
+graceful shutdown, optional worker replacement after a panic, and an optional
+durable task queue.
 
-The pool runs in one process and keeps queued work in memory. It supports up to
-256 registered workers.
+The pool runs in one process and keeps its submission queue in memory. The
+`durable` package can persist reconstructible jobs before dispatch. The pool
+supports up to 256 registered workers.
 
 ## Contents
 
@@ -16,6 +18,7 @@ The pool runs in one process and keeps queued work in memory. It supports up to
 - [Results and errors](#results-and-errors)
 - [Shutdown](#shutdown)
 - [Worker recovery](#worker-recovery)
+- [Durable tasks](#durable-tasks)
 - [Logging and statistics](#logging-and-statistics)
 - [Development](#development)
 
@@ -288,6 +291,24 @@ then start them with `WakeAllWorkersUp` to repair capacity and begin fresh budge
 `LastFailure` remains available after a repair. Its stages are `create`, `start`,
 `capacity`, and `limit`; inspect `LastFailure.Err` with `errors.Is/As`.
 
+## Durable tasks
+
+The optional [`durable` package](durable/README.md) persists JobID, task kind,
+data version, payload, retry policy, and outcome in a local bbolt database.
+`Queue.Enqueue` commits acceptance independently of Master availability;
+`Queue.Run` rebuilds a fresh Task through the application's Builder and dispatches
+it with the existing Master. Master/Worker state remains in memory.
+
+Task phases must finish all required work before returning success. Only a
+committed completion record marks a job succeeded. Panicked/interrupted work can
+have unknown external effects; automatic retries require explicit application
+idempotency or deduplication and a separate Task attempt budget. Worker replacement
+keeps its existing policy. Tasks gain no context binding.
+
+This first version supports one database owner and one runner, with bounded
+attempts rather than exactly-once effects. See the [durable contracts and usage](durable/README.md)
+and [runnable example](durable/example_test.go).
+
 ## Logging and statistics
 
 `WithLogger(logger)` configures one worker. `WithMasterLogger(logger)` configures
@@ -327,6 +348,8 @@ go test -race ./...
 ```
 
 For repeated scheduling checks, run `go test -race -shuffle=on -count=20 ./...`.
+See the [worker pool benchmarks](benchmarks/README.md) for the separate comparison
+module and its fixed workload protocol.
 See the [validation record](docs/feature-evaluation.md),
 [API examples](example_test.go), and [CI workflow](.github/workflows/deploy.yml).
 
@@ -339,6 +362,7 @@ See the [validation record](docs/feature-evaluation.md),
 | `master_lifecycle.go` | Admission shutdown, draining, and waiting |
 | `master_recovery.go`, `recovery.go` | Replacement workers, restart limits, and failure snapshots |
 | `stats.go` | Execution counters and snapshots |
+| `durable/` | Persisted job specifications, reconstruction, outcomes, and safe bounded retries |
 
 The local codebase-memory-mcp graph lives in `.codebase-memory/`, which is ignored
 by Git. Refresh it after substantial source changes.
