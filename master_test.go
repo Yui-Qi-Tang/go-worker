@@ -60,7 +60,7 @@ func TestAtomicType(t *testing.T) {
 		t.Fatalf("wrong on number of workers: %d, expected: %d", ms.GetWorkers(), workers)
 	}
 
-	for i := 0; i < taskCounts; i++ {
+	for range taskCounts {
 		ms.Schedule(testvar) // normal is a test case from worker_test
 	}
 
@@ -98,7 +98,7 @@ func TestMasterWithNormalTask(t *testing.T) {
 		t.Fatalf("wrong on number of workers: %d, expected: %d", ms.GetWorkers(), workerNums)
 	}
 
-	for i := 0; i < taskConuts; i++ {
+	for range taskConuts {
 		ms.Schedule(normal) // normal is a test case from worker_test
 	}
 

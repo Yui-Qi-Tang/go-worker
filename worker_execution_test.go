@@ -114,7 +114,7 @@ func TestConcurrentDoKeepsTaskResultsSeparate(t *testing.T) {
 	const rounds = 8
 	results := make(chan result, rounds*len(tests))
 	start := make(chan struct{})
-	for i := 0; i < rounds; i++ {
+	for range rounds {
 		for _, tt := range tests {
 			go func(task phaseErrorTask, want error) {
 				<-start

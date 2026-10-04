@@ -36,7 +36,7 @@ func waitForRecoveryStats(t *testing.T, m *Master, ready func(RecoveryStats) boo
 func TestRecoveryLimitSurvivesReplacementAndSuccessfulTasks(t *testing.T) {
 	m := newFeatureMaster(t, 1, WithWorkerRecovery(true), recoveryLimit(2))
 	original := currentWorker(t, m)
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := range 3 {
 		if err := m.ScheduleContext(testContext(t), functionTask{run: func() error { panic("broken task") }}); err != ErrWorkerPanic {
 			t.Fatalf("panic %d: %v", attempt, err)
 		}
@@ -246,8 +246,7 @@ func TestDroppedRecoverySignalAndConcurrentObserversDoNotLoseOrDuplicateRecovery
 	waitForRecoveryStats(t, m, func(s RecoveryStats) bool { return s.Started == 1 })
 	var wg sync.WaitGroup
 	for range 32 {
-		wg.Add(1)
-		go func() { defer wg.Done(); m.recoverWorker(old.recoveryIdentity()) }()
+		wg.Go(func() { m.recoverWorker(old.recoveryIdentity()) })
 	}
 	wg.Wait()
 	if got := m.RecoveryStats(); got.Attempts != 1 || got.Started != 1 || got.Failed != 0 || got.Exhausted != 0 {

@@ -169,7 +169,7 @@ func TestScheduleContextAfterHandoffRetainsWorkerUntilCompletion(t *testing.T) {
 
 func TestScheduleCancellationRaceHasExactlyOneOutcome(t *testing.T) {
 	m := newFeatureMaster(t, 1)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		var runs int32
 		ctx, cancel := context.WithCancel(context.Background())
 		start := make(chan struct{})
@@ -282,7 +282,7 @@ func TestResultsPreservePhaseCausesAndPanicDetails(t *testing.T) {
 		{"init", phaseErrorTask{id: "init", initErr: cause}, ErrWorkerTaskInit, PhaseInit, cause, nil},
 		{"run", phaseErrorTask{id: "run", runErr: cause}, ErrWorkerTaskRun, PhaseRun, cause, nil},
 		{"done", phaseErrorTask{id: "done", doneErr: cause}, ErrWorkerTaskDone, PhaseDone, cause, nil},
-		{"panic", functionTask{phaseErrorTask: phaseErrorTask{id: "panic"}, run: func() error { panic(cause) }}, ErrWorkerPanic, PhaseRun, cause, cause},
+		{"panic", functionTask{id: "panic", run: func() error { panic(cause) }}, ErrWorkerPanic, PhaseRun, cause, cause},
 		{"id panic", &executionTraceTask{panicIDCall: 1}, ErrWorkerPanic, PhaseID, nil, "ID panic"},
 	}
 	for _, tt := range tests {
@@ -388,10 +388,10 @@ func TestQueueBoundsAdmissionAndFutureWaitIsReusable(t *testing.T) {
 	}
 	const readers = 8
 	results := make(chan Result, readers)
-	for i := 0; i < readers; i++ {
+	for range readers {
 		go func() { r, _ := first.Wait(context.Background()); results <- r }()
 	}
-	for i := 0; i < readers; i++ {
+	for range readers {
 		select {
 		case r := <-results:
 			if r.Err != nil || r.TaskID != "first" {
@@ -502,7 +502,7 @@ func TestQueueHandsOffInAdmissionOrder(t *testing.T) {
 	var mu sync.Mutex
 	var order []int
 	var futures []*Future
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		futures = append(futures, submitTask(t, m, functionTask{run: func() error { mu.Lock(); order = append(order, i); mu.Unlock(); return nil }}))
 	}
 	for _, f := range futures {
@@ -560,7 +560,7 @@ func TestConcurrentAdmissionAndShutdown(t *testing.T) {
 	firstRun := make(chan struct{})
 	var firstOnce sync.Once
 	task := functionTask{run: func() error { firstOnce.Do(func() { close(firstRun) }); runtime.Gosched(); return nil }}
-	for i := 0; i < callers; i++ {
+	for i := range callers {
 		go func() {
 			<-start
 			if i%2 == 0 {
@@ -584,7 +584,7 @@ func TestConcurrentAdmissionAndShutdown(t *testing.T) {
 	if err := m.Shutdown(ctx); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < callers; i++ {
+	for range callers {
 		if err := awaitError(t, results); err != nil && err != ErrMasterStopped {
 			t.Fatal(err)
 		}
@@ -676,7 +676,7 @@ func TestConcurrentStopAndShutdownCompleteOnce(t *testing.T) {
 	called := make(chan struct{}, callers)
 	done := make(chan error, callers)
 	ctx := testContext(t)
-	for i := 0; i < callers; i++ {
+	for i := range callers {
 		go func() {
 			called <- struct{}{}
 			if i%2 == 0 {
@@ -687,7 +687,7 @@ func TestConcurrentStopAndShutdownCompleteOnce(t *testing.T) {
 			}
 		}()
 	}
-	for i := 0; i < callers; i++ {
+	for range callers {
 		select {
 		case <-called:
 		case <-ctx.Done():
@@ -695,7 +695,7 @@ func TestConcurrentStopAndShutdownCompleteOnce(t *testing.T) {
 		}
 	}
 	gate.unblock()
-	for i := 0; i < callers; i++ {
+	for range callers {
 		if err := awaitError(t, done); err != nil {
 			t.Fatal(err)
 		}

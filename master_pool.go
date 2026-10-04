@@ -1,5 +1,7 @@
 package worker
 
+import "slices"
+
 // AddWorker adds worker to pool
 func (m *Master) AddWorker(worker *Worker) error {
 	if worker == nil {
@@ -59,16 +61,14 @@ func (m *Master) addWorkerLocked(worker *Worker) {
 	if worker.recoveryBudget == nil {
 		worker.recoveryBudget = &restartBudget{}
 	}
-	m.backgroundWG.Add(1)
-	go func() {
-		defer m.backgroundWG.Done()
+	m.backgroundWG.Go(func() {
 		<-worker.done
 		// The channel notification is only a fast path. Exit observation also
 		// recovers startup/direct-task panics when that notification was dropped.
 		if worker.didPanic() && m.workerPanic != nil {
 			m.recoverWorker(worker.recoveryIdentity())
 		}
-	}()
+	})
 
 	m.Pool = append(m.Pool, worker)
 	m.workerAdded = true
@@ -106,7 +106,7 @@ func (m *Master) AddWorkers(counts int) error {
 	m.RUnlock()
 
 	workers := make([]*Worker, 0, counts)
-	for i := 0; i < counts; i++ {
+	for range counts {
 		opts := []Option{WithRecovery(m.workerPanic != nil)}
 		if m.loggerConfigured {
 			opts = append(opts, WithLogger(m.logger))
@@ -143,12 +143,7 @@ func (m *Master) hasWorker(worker *Worker) bool {
 
 	m.RLock()
 	defer m.RUnlock()
-	for _, poolWorker := range m.Pool {
-		if poolWorker == worker {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.Pool, worker)
 }
 
 func (m *Master) hasStartedWorker() bool {

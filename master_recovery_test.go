@@ -48,7 +48,7 @@ func TestMasterRecoveryStartsReplacementWorker(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		oldWorker := currentWorker(t, ms)
 		if err := ms.Schedule(recoveryTask{id: "panic-recovery", panicInInit: true}); err != ErrWorkerPanic {
 			t.Fatalf("panic task error = %v, want %v", err, ErrWorkerPanic)

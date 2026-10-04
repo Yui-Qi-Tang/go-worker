@@ -16,7 +16,7 @@ type Master struct {
 	Pool []*Worker // memo: save worker here, can we re-run the stopped worker?
 
 	workerPanic         chan string
-	stopRecoveryRoutine chan interface{}
+	stopRecoveryRoutine chan any
 
 	WorkerQueue chan *Worker
 	Quit        chan bool
@@ -74,7 +74,7 @@ func WithWorkerRecovery(enable bool) MasterOption {
 	return func(m *Master) {
 		if enable {
 			m.workerPanic = make(chan string, maxPoolSize)
-			m.stopRecoveryRoutine = make(chan interface{})
+			m.stopRecoveryRoutine = make(chan any)
 		} else {
 			m.workerPanic = nil
 			m.stopRecoveryRoutine = nil
@@ -110,12 +110,10 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 		return nil, ErrInvalidRecoveryPolicy
 	}
 	if m.isRecoveryInitialized() {
-		m.backgroundWG.Add(1)
-		go func() { defer m.backgroundWG.Done(); m.RecoveryWorker() }()
+		m.backgroundWG.Go(m.RecoveryWorker)
 	}
 	if m.queueCapacity > 0 {
-		m.backgroundWG.Add(1)
-		go func() { defer m.backgroundWG.Done(); m.runQueue() }()
+		m.backgroundWG.Go(m.runQueue)
 	}
 	return m, nil
 }
@@ -133,14 +131,12 @@ func (m *Master) queueWorkerLocked(worker *Worker) {
 	if m.stopped {
 		return
 	}
-	m.backgroundWG.Add(1)
-	go func() {
-		defer m.backgroundWG.Done()
+	m.backgroundWG.Go(func() {
 		select {
 		case m.WorkerQueue <- worker:
 		case <-m.Quit:
 		}
-	}()
+	})
 }
 
 // Dispatch is an alias for Schedule.

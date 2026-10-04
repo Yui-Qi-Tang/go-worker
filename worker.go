@@ -74,7 +74,7 @@ type Worker struct {
 
 	// Recovery TODO: use a special type for this channel, it's between master and worker
 	Recovery chan string
-	Quit     chan interface{}
+	Quit     chan any
 
 	status chan string
 
@@ -118,7 +118,7 @@ func NewWorker(opts ...Option) (*Worker, error) {
 	name := guuid.New().String()
 	w := &Worker{
 		Name: name, recoveryID: name,
-		Quit: make(chan interface{}), Task: make(chan Task),
+		Quit: make(chan any), Task: make(chan Task),
 		status: make(chan string, 1), done: make(chan struct{}),
 	}
 	for _, opt := range opts {
