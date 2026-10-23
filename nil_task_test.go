@@ -67,7 +67,7 @@ func dispatchWithTimeout(t *testing.T, ms *Master, task Task) error {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- ms.Dispatch(task)
+		done <- ms.Schedule(task)
 	}()
 
 	select {

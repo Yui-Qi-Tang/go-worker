@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,21 +13,21 @@ type recoveryTask struct {
 	runs        *int32
 }
 
-func (t recoveryTask) Init() error {
+func (t recoveryTask) Init(context.Context) error {
 	if t.panicInInit {
 		panic("recover me")
 	}
 	return nil
 }
 
-func (t recoveryTask) Run() error {
+func (t recoveryTask) Run(context.Context) error {
 	if t.runs != nil {
 		atomic.AddInt32(t.runs, 1)
 	}
 	return nil
 }
 
-func (t recoveryTask) Done() error {
+func (t recoveryTask) Done(context.Context) error {
 	return nil
 }
 
@@ -68,14 +69,14 @@ func TestMasterRecoveryStartsReplacementWorker(t *testing.T) {
 func currentWorker(t *testing.T, ms *Master) *Worker {
 	t.Helper()
 
-	ms.RLock()
-	defer ms.RUnlock()
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
 
-	if len(ms.Pool) == 0 {
+	if len(ms.pool) == 0 {
 		t.Fatal("master has no workers")
 	}
 
-	return ms.Pool[0]
+	return ms.pool[0]
 }
 
 func waitForWorkerReplacement(t *testing.T, ms *Master, oldWorker *Worker) {

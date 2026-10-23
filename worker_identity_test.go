@@ -35,7 +35,7 @@ func TestMasterRejectsDuplicateWorkerNamesWithoutPoolMutation(t *testing.T) {
 	if got := ms.AddWorker(second); got != ErrMasterDuplicateWorkerName {
 		t.Fatalf("AddWorker(duplicate) error = %v, want %v", got, ErrMasterDuplicateWorkerName)
 	}
-	if got := ms.GetWorkers(); got != 1 {
+	if got := ms.Workers(); got != 1 {
 		t.Fatalf("workers after rejected duplicate = %d, want 1", got)
 	}
 }
@@ -61,12 +61,12 @@ func TestMasterRejectsDuplicateRegisteredIdentityAfterNameMutation(t *testing.T)
 		t.Fatalf("AddWorker(first) error = %v, want nil", got)
 	}
 
-	first.Name = "renamed-worker"
+	first.name = "renamed-worker"
 
 	if got := ms.AddWorker(second); got != ErrMasterDuplicateWorkerName {
 		t.Fatalf("AddWorker(duplicate identity after rename) error = %v, want %v", got, ErrMasterDuplicateWorkerName)
 	}
-	if got := ms.GetWorkers(); got != 1 {
+	if got := ms.Workers(); got != 1 {
 		t.Fatalf("workers after rejected duplicate identity = %d, want 1", got)
 	}
 }

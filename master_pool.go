@@ -2,7 +2,9 @@ package worker
 
 import "slices"
 
-// AddWorker adds worker to pool
+// AddWorker registers an initialized, unstopped worker with a unique name.
+// The master takes over its recovery wiring and execution statistics. Start
+// it with WakeAllWorkersUp, or call Start yourself.
 func (m *Master) AddWorker(worker *Worker) error {
 	if worker == nil {
 		return ErrMasterAddNilWorker
@@ -11,8 +13,8 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return ErrMasterNotInitialized
 	}
 
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if m.closing || m.stopped {
 		return ErrMasterStopped
@@ -26,7 +28,7 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return ErrWorkerStopped
 	}
 
-	if worker.Name == "" {
+	if worker.name == "" {
 		return ErrWorkerInvalidName
 	}
 
@@ -34,7 +36,7 @@ func (m *Master) AddWorker(worker *Worker) error {
 		return ErrMasterDuplicateWorkerName
 	}
 
-	if uint(len(m.Pool)+1) > maxPoolSize {
+	if uint(len(m.pool)+1) > maxPoolSize {
 		return ErrMasterWorkerPoolIsFull
 	}
 
@@ -44,7 +46,7 @@ func (m *Master) AddWorker(worker *Worker) error {
 }
 
 func (m *Master) hasWorkerIdentityLocked(id string) bool {
-	for _, worker := range m.Pool {
+	for _, worker := range m.pool {
 		if worker.identity() == id {
 			return true
 		}
@@ -54,10 +56,10 @@ func (m *Master) hasWorkerIdentityLocked(id string) bool {
 
 func (m *Master) addWorkerLocked(worker *Worker) {
 	// Master owns recovery signaling after a worker enters the pool.
-	worker.Lock()
-	worker.Recovery = m.workerPanic
+	worker.mu.Lock()
+	worker.recovery = m.workerPanic
 	worker.ownerMetrics = &m.metrics
-	worker.Unlock()
+	worker.mu.Unlock()
 	if worker.recoveryBudget == nil {
 		worker.recoveryBudget = &restartBudget{}
 	}
@@ -70,7 +72,7 @@ func (m *Master) addWorkerLocked(worker *Worker) {
 		}
 	})
 
-	m.Pool = append(m.Pool, worker)
+	m.pool = append(m.pool, worker)
 	m.workerAdded = true
 	m.poolErr = nil
 	m.signalPoolChangedLocked()
@@ -78,7 +80,8 @@ func (m *Master) addWorkerLocked(worker *Worker) {
 	m.queueWorkerLocked(worker)
 }
 
-// AddWorkers creates number of workers with counts; HINT: the workers support recovery
+// AddWorkers creates and registers counts unstarted workers that use the
+// master's logger and recovery setting. Start them with WakeAllWorkersUp.
 func (m *Master) AddWorkers(counts int) error {
 	if counts < 0 {
 		return ErrMasterSetupWithInvalidWorkerCount
@@ -90,24 +93,24 @@ func (m *Master) AddWorkers(counts int) error {
 		return ErrMasterNotInitialized
 	}
 
-	m.RLock()
+	m.mu.RLock()
 	if m.closing || m.stopped {
-		m.RUnlock()
+		m.mu.RUnlock()
 		return ErrMasterStopped
 	}
 	if counts == 0 {
-		m.RUnlock()
+		m.mu.RUnlock()
 		return nil
 	}
-	if uint(len(m.Pool)+counts) > maxPoolSize {
-		m.RUnlock()
+	if uint(len(m.pool)+counts) > maxPoolSize {
+		m.mu.RUnlock()
 		return ErrMasterWorkerPoolIsFull
 	}
-	m.RUnlock()
+	m.mu.RUnlock()
 
 	workers := make([]*Worker, 0, counts)
 	for range counts {
-		opts := []Option{WithRecovery(m.workerPanic != nil)}
+		opts := []Option{withRecovery(m.workerPanic != nil)}
 		if m.loggerConfigured {
 			opts = append(opts, WithLogger(m.logger))
 		}
@@ -118,14 +121,14 @@ func (m *Master) AddWorkers(counts int) error {
 		workers = append(workers, w)
 	}
 
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if m.closing || m.stopped {
 		return ErrMasterStopped
 	}
 
-	if uint(len(m.Pool)+len(workers)) > maxPoolSize {
+	if uint(len(m.pool)+len(workers)) > maxPoolSize {
 		return ErrMasterWorkerPoolIsFull
 	}
 
@@ -141,9 +144,9 @@ func (m *Master) hasWorker(worker *Worker) bool {
 		return false
 	}
 
-	m.RLock()
-	defer m.RUnlock()
-	return slices.Contains(m.Pool, worker)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return slices.Contains(m.pool, worker)
 }
 
 func (m *Master) hasStartedWorker() bool {
@@ -151,10 +154,10 @@ func (m *Master) hasStartedWorker() bool {
 		return false
 	}
 
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
-	for _, worker := range m.Pool {
+	for _, worker := range m.pool {
 		if worker.isStarted() {
 			return true
 		}
@@ -167,10 +170,10 @@ func (m *Master) removeWorker(id string, expectRecovery bool) bool {
 		return false
 	}
 
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	for i, worker := range m.Pool {
+	for i, worker := range m.pool {
 		if worker.identity() == id {
 			m.removeWorkerAtLocked(i, expectRecovery)
 			return true
@@ -183,7 +186,7 @@ func (m *Master) removeWorker(id string, expectRecovery bool) bool {
 // removeWorkerAtLocked preserves the pending-recovery state while a replacement
 // is being created. Callers must hold m's write lock.
 func (m *Master) removeWorkerAtLocked(index int, expectRecovery bool) {
-	m.Pool = append(m.Pool[:index], m.Pool[index+1:]...)
+	m.pool = append(m.pool[:index], m.pool[index+1:]...)
 	if !expectRecovery {
 		m.markWorkerPoolEmptyLocked()
 	}
@@ -196,47 +199,44 @@ func (m *Master) signalPoolChangedLocked() {
 }
 
 func (m *Master) markWorkerPoolEmptyLocked() {
-	if len(m.Pool) == 0 {
+	if len(m.pool) == 0 {
 		m.workerAdded = false
 	}
 }
 
-// GetWorkers returns number of workers
-func (m *Master) GetWorkers() int {
+// Workers returns the number of workers in the pool.
+func (m *Master) Workers() int {
 	if !m.isInitialized() {
 		return 0
 	}
 
-	m.RLock()
-	defer m.RUnlock()
-	return len(m.Pool)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.pool)
 }
 
-// GetPoolSize returns number of workers in the pool.
-func (m *Master) GetPoolSize() int {
-	return m.GetWorkers()
-}
-
-// WakeAllWorkersUp weaks all of workers in the pool up
+// WakeAllWorkersUp starts every unstarted worker in the pool. Stopped workers
+// are removed, and ErrWorkerStopped is returned after the remaining workers
+// start. It returns ErrMasterWorkerPoolIsEmpty for an empty pool.
 func (m *Master) WakeAllWorkersUp() error {
 	if !m.isInitialized() {
 		return ErrMasterNotInitialized
 	}
 
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if m.closing || m.stopped {
 		return ErrMasterStopped
 	}
 
-	if len(m.Pool) == 0 {
+	if len(m.pool) == 0 {
 		return ErrMasterWorkerPoolIsEmpty
 	}
 
 	var wakeErr error
-	for i := 0; i < len(m.Pool); {
-		w := m.Pool[i]
+	for i := 0; i < len(m.pool); {
+		w := m.pool[i]
 		if err := w.Start(); err != nil && err != ErrWorkerAlreadyStarted {
 			if err == ErrWorkerStopped {
 				m.removeWorkerAtLocked(i, false)
@@ -254,9 +254,9 @@ func (m *Master) WakeAllWorkersUp() error {
 // Remove by pointer so a stale lease cannot remove a replacement with the same
 // registered name. Recovery identity handles the corresponding panic path.
 func (m *Master) removeWorkerReference(target *Worker) {
-	m.Lock()
-	defer m.Unlock()
-	for i, w := range m.Pool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, w := range m.pool {
 		if w == target {
 			m.removeWorkerAtLocked(i, false)
 			return

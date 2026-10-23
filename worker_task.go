@@ -8,6 +8,10 @@ import (
 type taskRequest struct {
 	Task
 	result chan Result
+	// An async request completes future on the worker goroutine instead of
+	// sending on result, so no goroutine has to wait for it.
+	master *Master
+	future *Future
 }
 
 func newTaskRequest(task Task) *taskRequest {
@@ -15,28 +19,31 @@ func newTaskRequest(task Task) *taskRequest {
 }
 
 func (w *Worker) executeTask(task Task, result *Result) {
-	if isNilTask(task) {
-		w.logger.Error(workerErrNil, zap.String("worker", w.Name))
-		result.Err = ErrWorkerNilTask
-		return
+	// ID is read even when logging is disabled; Result.TaskID depends on it.
+	// Check avoids building log fields for a disabled level on every task.
+	taskID := readTaskID(task, result)
+	if ce := w.logger.Check(zap.InfoLevel, workerEventReceived); ce != nil {
+		ce.Write(zap.String("worker", w.name), zap.String("task_name", taskID))
 	}
-	w.logger.Info(workerEventReceived, zap.String("worker", w.Name), zap.String("task_name", readTaskID(task, result)))
 	result.Phase = PhaseInit
-	if err := task.Init(); err != nil {
+	if err := task.Init(w.ctx); err != nil {
 		w.taskFailure(task, result, ErrWorkerTaskInit, err, workerErrInit)
 		return
 	}
 	result.Phase = PhaseRun
-	if err := task.Run(); err != nil {
+	if err := task.Run(w.ctx); err != nil {
 		w.taskFailure(task, result, ErrWorkerTaskRun, err, workerErrRun)
 		return
 	}
 	result.Phase = PhaseDone
-	if err := task.Done(); err != nil {
+	if err := task.Done(w.ctx); err != nil {
 		w.taskFailure(task, result, ErrWorkerTaskDone, err, workerErrDone)
 		return
 	}
-	w.logger.Info(workerEventDone, zap.String("worker", w.Name), zap.String("task_id", readTaskID(task, result)))
+	taskID = readTaskID(task, result)
+	if ce := w.logger.Check(zap.InfoLevel, workerEventDone); ce != nil {
+		ce.Write(zap.String("worker", w.name), zap.String("task_id", taskID))
+	}
 	result.Phase = ""
 }
 
@@ -50,46 +57,20 @@ func readTaskID(task Task, result *Result) string {
 
 func (w *Worker) taskFailure(task Task, result *Result, sentinel, cause error, event string) {
 	result.Err, result.Cause = sentinel, cause
-	w.logger.Error(event, zap.String("worker", w.Name), zap.String("task_name", readTaskID(task, result)), zap.Any("reason", cause))
+	w.logger.Error(event, zap.String("worker", w.name), zap.String("task_name", readTaskID(task, result)), zap.Any("reason", cause))
 }
 
-func (w *Worker) waitStatus() string { return <-w.status }
-
-func (w *Worker) reportTaskResult(task Task, result Result) {
-	if request, ok := task.(*taskRequest); ok {
-		request.result <- result
+func (w *Worker) reportTaskResult(request *taskRequest, result Result) {
+	if request.future != nil {
+		request.master.completeAsync(w, request.future, result)
 		return
 	}
-	status := workerEventDone
-	switch result.Err {
-	case ErrWorkerPanic:
-		status = workerPanic
-	case ErrWorkerTaskInit:
-		status = workerErrInit
-	case ErrWorkerTaskRun:
-		status = workerErrRun
-	case ErrWorkerTaskDone:
-		status = workerErrDone
-	case ErrWorkerNilTask:
-		status = workerErrNil
-	case ErrWorkerStopped:
-		status = workerEventQuit
-	}
-	select {
-	case w.status <- status:
-	default:
-	}
+	request.result <- result
 }
 
 // sendTaskContext only responds to cancellation before the channel handoff.
 // Once the send wins, the caller must await its result before reusing the worker.
-func (w *Worker) sendTaskContext(ctx context.Context, task Task, interrupt <-chan struct{}) (err error) {
-	defer func() {
-		if recover() != nil {
-			w.stop()
-			err = ErrWorkerStopped
-		}
-	}()
+func (w *Worker) sendTaskContext(ctx context.Context, request *taskRequest, interrupt <-chan struct{}) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -103,25 +84,23 @@ func (w *Worker) sendTaskContext(ctx context.Context, task Task, interrupt <-cha
 		return ctx.Err()
 	case <-interrupt:
 		return ErrMasterStopped
-	case <-w.Quit:
+	case <-w.quit:
 		return ErrWorkerStopped
-	case w.Task <- task:
+	case w.task <- request:
 		return nil
 	}
 }
 
-func (w *Worker) prepareTask(ctx context.Context, task Task, interrupt <-chan struct{}) (*taskRequest, error) {
+// prepareTask hands request to the worker. A failed handoff leaves request
+// unsent, so the caller may offer it to another worker.
+func (w *Worker) prepareTask(ctx context.Context, request *taskRequest, interrupt <-chan struct{}) error {
 	if err := w.readyError(); err != nil {
-		return nil, err
+		return err
 	}
-	if isNilTask(task) {
-		return nil, ErrWorkerNilTask
+	if isNilTask(request.Task) {
+		return ErrWorkerNilTask
 	}
-	request := newTaskRequest(task)
-	if err := w.sendTaskContext(ctx, request, interrupt); err != nil {
-		return nil, err
-	}
-	return request, nil
+	return w.sendTaskContext(ctx, request, interrupt)
 }
 
 // Do processes a task and preserves the package's phase sentinel errors.
@@ -134,8 +113,8 @@ func (w *Worker) DoContext(ctx context.Context, task Task) error { return w.DoRe
 
 // DoResult is DoContext with the original failure and panic details retained.
 func (w *Worker) DoResult(ctx context.Context, task Task) Result {
-	request, err := w.prepareTask(ctx, task, nil)
-	if err != nil {
+	request := newTaskRequest(task)
+	if err := w.prepareTask(ctx, request, nil); err != nil {
 		return Result{Err: err}
 	}
 	return <-request.result

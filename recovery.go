@@ -60,8 +60,8 @@ func (m *Master) RecoveryStats() RecoveryStats {
 	if !m.isInitialized() {
 		return RecoveryStats{}
 	}
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.recoveryStats
 }
 

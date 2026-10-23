@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	worker "github.com/Yui-Qi-Tang/go-worker"
 	"go.uber.org/zap"
-	worker "yuki-tang.github.com"
 )
 
 type exampleTask struct {
@@ -15,10 +15,10 @@ type exampleTask struct {
 	err error
 }
 
-func (t exampleTask) ID() string  { return t.id }
-func (t exampleTask) Init() error { return nil }
-func (t exampleTask) Run() error  { return t.err }
-func (t exampleTask) Done() error { return nil }
+func (t exampleTask) ID() string                 { return t.id }
+func (t exampleTask) Init(context.Context) error { return nil }
+func (t exampleTask) Run(context.Context) error  { return t.err }
+func (t exampleTask) Done(context.Context) error { return nil }
 
 func ExampleMaster_Submit() {
 	m, err := worker.NewMaster(worker.WithQueueCapacity(4), worker.WithMasterLogger(zap.NewNop()))
@@ -67,7 +67,7 @@ func ExampleWorker_DoResult() {
 
 type examplePanicTask struct{ exampleTask }
 
-func (t examplePanicTask) Run() error { panic("job failed") }
+func (t examplePanicTask) Run(context.Context) error { panic("job failed") }
 
 func ExampleMaster_RecoveryStats() {
 	m, err := worker.NewMaster(

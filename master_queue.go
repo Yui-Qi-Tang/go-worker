@@ -21,11 +21,6 @@ func WithQueueCapacity(capacity int) MasterOption {
 	return func(m *Master) { m.queueCapacity = capacity }
 }
 
-type submission struct {
-	task   Task
-	future *Future
-}
-
 // Submit waits for queue space and returns a reusable result handle. ctx only
 // controls admission: accepted tasks run independently of it. Use Future.Wait
 // with a separate context to limit result waiting. Tasks must not perform a
@@ -50,25 +45,25 @@ func (m *Master) submit(ctx context.Context, task Task, block bool) (*Future, er
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		m.Lock()
+		m.mu.Lock()
 		if err := m.acceptReadyErrorLocked(); err != nil {
-			m.Unlock()
+			m.mu.Unlock()
 			return nil, err
 		}
 		if m.queueCapacity == 0 {
-			m.Unlock()
+			m.mu.Unlock()
 			return nil, ErrQueueDisabled
 		}
 		if len(m.pending) < m.queueCapacity {
 			future := newFuture()
 			m.tasksWG.Add(1)
-			m.pending = append(m.pending, &submission{task: task, future: future})
+			m.pending = append(m.pending, &taskRequest{Task: task, master: m, future: future})
 			m.signalQueueChangedLocked()
-			m.Unlock()
+			m.mu.Unlock()
 			return future, nil
 		}
-		changed := m.queueChanged
-		m.Unlock()
+		changed := m.watchQueueLocked()
+		m.mu.Unlock()
 		if !block {
 			return nil, ErrQueueFull
 		}
@@ -82,46 +77,60 @@ func (m *Master) submit(ctx context.Context, task Task, block bool) (*Future, er
 	}
 }
 
+// watchQueueLocked returns a channel closed by the next queue change. Only a
+// watched channel is replaced on change, so an unobserved change allocates
+// nothing.
+func (m *Master) watchQueueLocked() <-chan struct{} {
+	m.queueWatched = true
+	return m.queueChanged
+}
+
 func (m *Master) signalQueueChangedLocked() {
+	if !m.queueWatched {
+		return
+	}
 	close(m.queueChanged)
 	m.queueChanged = make(chan struct{})
+	m.queueWatched = false
 }
 
 func (m *Master) runQueue() {
 	for {
-		m.Lock()
+		m.mu.Lock()
 		if len(m.pending) == 0 {
-			stopped, changed := m.stopped, m.queueChanged
-			m.Unlock()
+			stopped, changed := m.stopped, m.watchQueueLocked()
+			m.mu.Unlock()
 			if stopped {
 				return
 			}
 			select {
 			case <-changed:
-			case <-m.Quit:
+			case <-m.quit:
 			}
 			continue
 		}
 		job := m.pending[0]
-		m.Unlock()
+		m.mu.Unlock()
 
 		// Retain the head in the queue until handoff so waiting submissions
 		// cannot escape the configured bound by spawning dispatch goroutines.
-		w, request, err := m.dispatch(context.Background(), job.task, nil)
-		m.Lock()
+		_, err := m.dispatch(context.Background(), job, nil)
+		m.mu.Lock()
 		m.pending[0] = nil
 		m.pending = m.pending[1:]
 		m.signalQueueChangedLocked()
-		m.Unlock()
+		m.mu.Unlock()
 		if err != nil {
 			job.future.complete(Result{Err: err})
 			m.tasksWG.Done()
-			continue
 		}
-		// Already counted by tasksWG at admission, including this completion.
-		go func() {
-			defer m.tasksWG.Done()
-			job.future.complete(m.finishDispatch(w, request))
-		}()
+		// After a handoff, the worker calls completeAsync.
 	}
+}
+
+// completeAsync runs on the worker goroutine. The task was counted by tasksWG
+// at admission.
+func (m *Master) completeAsync(w *Worker, future *Future, result Result) {
+	defer m.tasksWG.Done()
+	future.complete(m.releaseResult(w, result))
 }

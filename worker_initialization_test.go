@@ -9,12 +9,12 @@ func TestMasterAddWorkerRejectsUninitializedWorker(t *testing.T) {
 	}
 	defer ms.Stop()
 
-	w := &Worker{Name: "uninitialized-worker"}
+	w := &Worker{name: "uninitialized-worker"}
 
 	if got := ms.AddWorker(w); got != ErrWorkerNotInitialized {
 		t.Fatalf("AddWorker() error = %v, want %v", got, ErrWorkerNotInitialized)
 	}
-	if got := ms.GetWorkers(); got != 0 {
+	if got := ms.Workers(); got != 0 {
 		t.Fatalf("workers after rejected uninitialized worker = %d, want 0", got)
 	}
 }

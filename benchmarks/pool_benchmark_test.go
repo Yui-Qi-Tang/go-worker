@@ -9,23 +9,23 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/Yui-Qi-Tang/go-worker"
 	"github.com/alitto/pond/v2"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/zap"
-	worker "yuki-tang.github.com"
 )
 
 const queueCapacity = 64
 
 type benchmarkTask struct{ run func() }
 
-func (benchmarkTask) ID() string  { return "benchmark" }
-func (benchmarkTask) Init() error { return nil }
-func (t benchmarkTask) Run() error {
+func (benchmarkTask) ID() string                 { return "benchmark" }
+func (benchmarkTask) Init(context.Context) error { return nil }
+func (t benchmarkTask) Run(context.Context) error {
 	t.run()
 	return nil
 }
-func (benchmarkTask) Done() error { return nil }
+func (benchmarkTask) Done(context.Context) error { return nil }
 
 // BenchmarkPool measures a finite batch, including pool construction, submission,
 // execution, and draining. One operation is one completed task, not a latency

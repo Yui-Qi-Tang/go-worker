@@ -3,19 +3,26 @@ package worker
 import "context"
 
 // Stop rejects new work and signals workers to stop without waiting. Queued
-// tasks receive ErrMasterStopped; tasks already running are allowed to finish.
+// tasks receive ErrMasterStopped. The context of each running task is
+// canceled; the task still finishes with its own result.
 func (m *Master) Stop() {
 	if !m.isInitialized() {
 		return
 	}
 	m.beginShutdown()
 	m.stopNow()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, w := range m.pool {
+		w.Stop()
+	}
 }
 
 // Shutdown rejects new work, drains accepted submissions, and waits for workers
 // and internal goroutines to exit. Pending synchronous handoffs are rejected.
 // The context limits this wait; draining continues after it expires. Call Stop
-// to abort queued work. Do not wait for shutdown from a task in this same pool.
+// to abort queued work and cancel running tasks' contexts. Do not wait for
+// shutdown from a task in this same pool.
 func (m *Master) Shutdown(ctx context.Context) error {
 	if !m.isInitialized() {
 		return ErrMasterNotInitialized
@@ -33,8 +40,8 @@ func (m *Master) Wait(ctx context.Context) error {
 }
 
 func (m *Master) beginShutdown() {
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.closing {
 		return
 	}
@@ -52,13 +59,15 @@ func (m *Master) beginShutdown() {
 
 func (m *Master) stopNow() {
 	m.stopOnce.Do(func() {
-		m.Lock()
-		defer m.Unlock()
+		m.mu.Lock()
+		defer m.mu.Unlock()
 		m.stopped = true
-		for _, w := range m.Pool {
-			w.Stop()
+		// Shutdown also arrives here once accepted work drains, so running
+		// direct calls are not canceled; Stop cancels them separately.
+		for _, w := range m.pool {
+			w.stop()
 		}
 		m.stopWorkerRecovery()
-		close(m.Quit)
+		close(m.quit)
 	})
 }

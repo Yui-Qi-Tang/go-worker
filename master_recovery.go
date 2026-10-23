@@ -7,10 +7,10 @@ func (m *Master) recoverWorker(id string) bool {
 		return false
 	}
 
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	for i, oldWorker := range m.Pool {
+	for i, oldWorker := range m.pool {
 		if oldWorker.recoveryIdentity() == id {
 			m.removeWorkerAtLocked(i, true)
 
@@ -25,7 +25,7 @@ func (m *Master) recoverWorker(id string) bool {
 				return true
 			}
 			m.recoveryStats.Attempts++
-			worker, err := m.newRecoveryWorker(WithName(oldWorker.identity()), WithRecovery(true), WithLogger(oldWorker.logger))
+			worker, err := m.newRecoveryWorker(WithName(oldWorker.identity()), withRecovery(true), WithLogger(oldWorker.logger))
 			if err != nil {
 				m.recordRecoveryFailureLocked(oldWorker, "create", err, now)
 				return true
@@ -39,7 +39,7 @@ func (m *Master) recoverWorker(id string) bool {
 				return true
 			}
 
-			if uint(len(m.Pool)+1) > maxPoolSize {
+			if uint(len(m.pool)+1) > maxPoolSize {
 				worker.Stop()
 				m.recordRecoveryFailureLocked(oldWorker, "capacity", ErrMasterWorkerPoolIsFull, now)
 				return true
@@ -67,15 +67,15 @@ func (m *Master) recordRecoveryFailureLocked(worker *Worker, stage string, err e
 		Stage: stage, Err: err, Time: now,
 	}
 	m.markWorkerPoolEmptyLocked()
-	if len(m.Pool) == 0 {
+	if len(m.pool) == 0 {
 		m.poolErr = poolErr
 	}
 	// State publication and notification share the lock used by dispatchState.
 	m.signalPoolChangedLocked()
 }
 
-// RecoveryWorker re-creates a new worker when receives worker panic
-func (m *Master) RecoveryWorker() {
+// recoveryLoop re-creates a new worker when receives worker panic
+func (m *Master) recoveryLoop() {
 	if !m.isRecoveryInitialized() {
 		return
 	}

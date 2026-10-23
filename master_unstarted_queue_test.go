@@ -7,7 +7,7 @@ func TestMasterScheduleSkipsUnstartedWorkerWhenStartedWorkerAvailable(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	ms.WorkerQueue = make(chan *Worker, 3)
+	ms.workerQueue = make(chan *Worker, 3)
 	defer ms.Stop()
 
 	unstarted, err := NewWorker(WithName("unstarted-queued-worker"))
@@ -35,8 +35,8 @@ func TestMasterScheduleSkipsUnstartedWorkerWhenStartedWorkerAvailable(t *testing
 		t.Fatal("master queued an unexpected started worker")
 	}
 
-	ms.WorkerQueue <- unstarted
-	ms.WorkerQueue <- started
+	ms.workerQueue <- unstarted
+	ms.workerQueue <- started
 
 	if got := dispatchWithTimeout(t, ms, normal); got != nil {
 		t.Fatalf("Dispatch() error = %v, want nil", got)

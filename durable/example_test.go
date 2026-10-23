@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
+	worker "github.com/Yui-Qi-Tang/go-worker"
+	"github.com/Yui-Qi-Tang/go-worker/durable"
 	"go.uber.org/zap"
-	worker "yuki-tang.github.com"
-	"yuki-tang.github.com/durable"
 )
 
 // writeTask completes and syncs the required file write before returning. Writing
@@ -21,10 +21,10 @@ type writeTask struct {
 	text string
 }
 
-func (t *writeTask) ID() string { return t.path }
-func (*writeTask) Init() error  { return nil }
-func (*writeTask) Done() error  { return nil }
-func (t *writeTask) Run() error {
+func (t *writeTask) ID() string               { return t.path }
+func (*writeTask) Init(context.Context) error { return nil }
+func (*writeTask) Done(context.Context) error { return nil }
+func (t *writeTask) Run(context.Context) error {
 	file, err := os.OpenFile(t.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
@@ -33,7 +33,7 @@ func (t *writeTask) Run() error {
 	return errors.Join(writeErr, file.Sync(), file.Close())
 }
 
-func buildWrite(job durable.Job) (worker.Task, error) {
+func buildWrite(_ context.Context, job durable.Job) (worker.Task, error) {
 	if job.Kind != "write-file" || job.Version != 1 {
 		return nil, fmt.Errorf("unsupported job kind/version: %s/%d", job.Kind, job.Version)
 	}

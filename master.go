@@ -10,16 +10,17 @@ import (
 	"go.uber.org/zap"
 )
 
-// Master manages worker
+// Master schedules tasks onto a pool of workers and optionally replaces
+// workers that panic.
 type Master struct {
-	sync.RWMutex
-	Pool []*Worker // memo: save worker here, can we re-run the stopped worker?
+	mu   sync.RWMutex
+	pool []*Worker
 
 	workerPanic         chan string
 	stopRecoveryRoutine chan any
 
-	WorkerQueue chan *Worker
-	Quit        chan bool
+	workerQueue chan *Worker
+	quit        chan bool
 
 	stopOnce sync.Once
 	stopped  bool
@@ -34,8 +35,9 @@ type Master struct {
 	logger            *zap.Logger
 	loggerConfigured  bool
 	queueCapacity     int
-	pending           []*submission
+	pending           []*taskRequest
 	queueChanged      chan struct{}
+	queueWatched      bool
 	poolChanged       chan struct{}
 	poolErr           error
 	recoveryPolicy    RecoveryPolicy
@@ -44,15 +46,16 @@ type Master struct {
 }
 
 var (
-	// ErrMasterSetupWithTooLargePoolSize is denoted too large pool size
+	// ErrMasterSetupWithTooLargePoolSize means AddWorkers was asked for more
+	// workers than a pool can hold.
 	ErrMasterSetupWithTooLargePoolSize error = errors.New("exceed max pool size " + strconv.FormatUint(uint64(maxPoolSize), 10))
 	// ErrMasterSetupWithInvalidWorkerCount denotes an invalid worker count.
 	ErrMasterSetupWithInvalidWorkerCount error = errors.New("worker count can not be negative")
-	// ErrMasterAddNilWorker is an error that denotes Add nil to Master
+	// ErrMasterAddNilWorker means AddWorker was given a nil worker.
 	ErrMasterAddNilWorker error = errors.New("worker can not be nil")
-	// ErrMasterWorkerPoolIsFull is denote the pool size of Master is full
+	// ErrMasterWorkerPoolIsFull means adding workers would exceed 256 in the pool.
 	ErrMasterWorkerPoolIsFull error = errors.New("pool of Master is full")
-	// ErrMasterWorkerPoolIsEmpty denotes the pool is empty
+	// ErrMasterWorkerPoolIsEmpty means the pool has no workers.
 	ErrMasterWorkerPoolIsEmpty error = errors.New("pool is empty")
 	// ErrMasterStopped denotes the master has already stopped accepting tasks.
 	ErrMasterStopped error = errors.New("master is stopped")
@@ -64,7 +67,7 @@ var (
 
 const maxPoolSize uint = 1 << 8
 
-// MasterOption is an option function form for master
+// MasterOption configures a Master in NewMaster.
 type MasterOption func(m *Master)
 
 // WithWorkerRecovery enables replacement of workers after a panic, subject to
@@ -92,7 +95,7 @@ func WithMasterLogger(logger *zap.Logger) MasterOption {
 // before submitting tasks. The asynchronous queue is disabled by default.
 func NewMaster(opts ...MasterOption) (*Master, error) {
 	m := &Master{
-		Quit: make(chan bool), WorkerQueue: make(chan *Worker), Pool: make([]*Worker, 0),
+		quit: make(chan bool), workerQueue: make(chan *Worker, maxPoolSize), pool: make([]*Worker, 0),
 		acceptDone: make(chan struct{}), done: make(chan struct{}), queueChanged: make(chan struct{}), poolChanged: make(chan struct{}),
 		recoveryPolicy:    RecoveryPolicy{MaxRestarts: 5, Window: time.Minute},
 		newRecoveryWorker: NewWorker,
@@ -110,7 +113,7 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 		return nil, ErrInvalidRecoveryPolicy
 	}
 	if m.isRecoveryInitialized() {
-		m.backgroundWG.Go(m.RecoveryWorker)
+		m.backgroundWG.Go(m.recoveryLoop)
 	}
 	if m.queueCapacity > 0 {
 		m.backgroundWG.Go(m.runQueue)
@@ -122,8 +125,8 @@ func (m *Master) queueWorker(worker *Worker) {
 	if !m.isInitialized() {
 		return
 	}
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.queueWorkerLocked(worker)
 }
 
@@ -131,16 +134,21 @@ func (m *Master) queueWorkerLocked(worker *Worker) {
 	if m.stopped {
 		return
 	}
+	// The buffer normally holds one token per pool slot, so a release queues
+	// without a goroutine. Stale tokens of removed workers can still fill it;
+	// then wait in the background rather than block while m is locked.
+	select {
+	case m.workerQueue <- worker:
+		return
+	default:
+	}
 	m.backgroundWG.Go(func() {
 		select {
-		case m.WorkerQueue <- worker:
-		case <-m.Quit:
+		case m.workerQueue <- worker:
+		case <-m.quit:
 		}
 	})
 }
-
-// Dispatch is an alias for Schedule.
-func (m *Master) Dispatch(task Task) error { return m.Schedule(task) }
 
 // Schedule waits for a worker and then for the task's outcome.
 func (m *Master) Schedule(task Task) error { return m.ScheduleContext(context.Background(), task) }
@@ -160,57 +168,58 @@ func (m *Master) ScheduleResult(ctx context.Context, task Task) Result {
 	if !m.isInitialized() {
 		return Result{Err: ErrMasterNotInitialized}
 	}
-	m.Lock()
+	m.mu.Lock()
 	if err := m.acceptReadyErrorLocked(); err != nil {
-		m.Unlock()
+		m.mu.Unlock()
 		return Result{Err: err}
 	}
 	m.tasksWG.Add(1)
-	m.Unlock()
+	m.mu.Unlock()
 	defer m.tasksWG.Done()
-	w, request, err := m.dispatch(ctx, task, m.acceptDone)
+	request := newTaskRequest(task)
+	w, err := m.dispatch(ctx, request, m.acceptDone)
 	if err != nil {
 		return Result{Err: err}
 	}
-	return m.finishDispatch(w, request)
+	return m.releaseResult(w, <-request.result)
 }
 
 // dispatch returns only after a handoff, without waiting for execution. The
 // async dispatcher uses a nil interrupt so graceful shutdown can drain its
 // already accepted tasks. Quit still aborts pending handoffs on Stop.
-func (m *Master) dispatch(ctx context.Context, task Task, interrupt <-chan struct{}) (*Worker, *taskRequest, error) {
+func (m *Master) dispatch(ctx context.Context, request *taskRequest, interrupt <-chan struct{}) (*Worker, error) {
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		select {
 		case <-interrupt:
-			return nil, nil, ErrMasterStopped
+			return nil, ErrMasterStopped
 		default:
 		}
 		changed, err := m.dispatchState()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		select {
 		case <-changed:
 			continue
 		case <-ctx.Done():
-			return nil, nil, ctx.Err()
+			return nil, ctx.Err()
 		case <-interrupt:
-			return nil, nil, ErrMasterStopped
-		case <-m.Quit:
-			return nil, nil, ErrMasterStopped
-		case w := <-m.WorkerQueue:
+			return nil, ErrMasterStopped
+		case <-m.quit:
+			return nil, ErrMasterStopped
+		case w := <-m.workerQueue:
 			if m.isStopped() {
-				return nil, nil, ErrMasterStopped
+				return nil, ErrMasterStopped
 			}
 			if !m.hasWorker(w) {
 				continue
 			}
-			request, err := w.prepareTask(ctx, task, interrupt)
+			err := w.prepareTask(ctx, request, interrupt)
 			if err == nil {
-				return w, request, nil
+				return w, nil
 			}
 			m.releaseWorker(w, err)
 			if err == ErrWorkerStopped && m.isStopped() {
@@ -220,20 +229,20 @@ func (m *Master) dispatch(ctx context.Context, task Task, interrupt <-chan struc
 				// A queued token can outlive a worker that panicked before
 				// handoff. Report the replacement outcome, or try a live slot.
 				if _, readyErr := m.dispatchState(); readyErr != nil {
-					return nil, nil, readyErr
+					return nil, readyErr
 				}
 				continue
 			}
 			if err == ErrWorkerNotStarted && m.hasStartedWorker() {
 				continue
 			}
-			return nil, nil, err
+			return nil, err
 		}
 	}
 }
 
-func (m *Master) finishDispatch(w *Worker, request *taskRequest) Result {
-	result := <-request.result
+// releaseResult returns w to the pool, or replaces it, after its task ended.
+func (m *Master) releaseResult(w *Worker, result Result) Result {
 	m.releaseWorker(w, result.Err)
 	if result.Err == ErrWorkerStopped && m.isStopped() {
 		result.Err = ErrMasterStopped
@@ -256,8 +265,8 @@ func (m *Master) isStopped() bool {
 	if !m.isInitialized() {
 		return true
 	}
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.stopped
 }
 
@@ -265,7 +274,7 @@ func (m *Master) acceptReadyErrorLocked() error {
 	if m.closing || m.stopped {
 		return ErrMasterStopped
 	}
-	if len(m.Pool) == 0 && !m.workerAdded {
+	if len(m.pool) == 0 && !m.workerAdded {
 		return m.emptyPoolErrorLocked()
 	}
 	return nil
@@ -277,12 +286,12 @@ func (m *Master) dispatchState() (<-chan struct{}, error) {
 	if !m.isInitialized() {
 		return nil, ErrMasterNotInitialized
 	}
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.stopped {
 		return nil, ErrMasterStopped
 	}
-	if len(m.Pool) == 0 && !m.workerAdded {
+	if len(m.pool) == 0 && !m.workerAdded {
 		return nil, m.emptyPoolErrorLocked()
 	}
 	return m.poolChanged, nil
@@ -296,5 +305,5 @@ func (m *Master) emptyPoolErrorLocked() error {
 }
 
 func (m *Master) isInitialized() bool {
-	return m != nil && m.WorkerQueue != nil && m.Quit != nil && m.acceptDone != nil && m.done != nil
+	return m != nil && m.workerQueue != nil && m.quit != nil && m.acceptDone != nil && m.done != nil
 }

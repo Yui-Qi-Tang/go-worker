@@ -19,7 +19,7 @@ type functionTask struct {
 	run func() error
 }
 
-func (t functionTask) Run() error { return t.run() }
+func (t functionTask) Run(context.Context) error { return t.run() }
 
 type gatedTask struct {
 	phaseErrorTask
@@ -35,8 +35,8 @@ func newGatedTask(t *testing.T) *gatedTask {
 	return task
 }
 
-func (t *gatedTask) Run() error { close(t.entered); <-t.release; return nil }
-func (t *gatedTask) unblock()   { t.once.Do(func() { close(t.release) }) }
+func (t *gatedTask) Run(context.Context) error { close(t.entered); <-t.release; return nil }
+func (t *gatedTask) unblock()                  { t.once.Do(func() { close(t.release) }) }
 
 func testContext(t *testing.T) context.Context {
 	t.Helper()
@@ -113,7 +113,7 @@ func TestScheduleContextCanceledBeforeHandoffReturnsWorker(t *testing.T) {
 	w := currentWorker(t, m)
 	gate := newGatedTask(t)
 	first := make(chan error, 1)
-	// Direct Do occupies the worker while it is still available in WorkerQueue.
+	// Direct Do occupies the worker while it is still available in workerQueue.
 	go func() { first <- w.Do(gate) }()
 	awaitSignal(t, gate.entered)
 
@@ -609,7 +609,9 @@ func TestWaitingTasksFinishWhenLastWorkerPanicsWithoutRecovery(t *testing.T) {
 	m := newFeatureMaster(t, 1, WithQueueCapacity(1))
 	gate := newGatedTask(t)
 	first := make(chan error, 1)
-	go func() { first <- m.Schedule(functionTask{run: func() error { _ = gate.Run(); panic("last worker") }}) }()
+	go func() {
+		first <- m.Schedule(functionTask{run: func() error { _ = gate.Run(context.Background()); panic("last worker") }})
+	}()
 	awaitSignal(t, gate.entered)
 	base, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -737,3 +739,40 @@ func TestLegacyNilPanicStillCompletesTask(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestWorkerLogsTaskEventsWhenInfoEnabled(t *testing.T) {
+	core, logs := observer.New(zap.InfoLevel)
+	w, err := NewWorker(WithName("logged-worker"), WithLogger(zap.New(core)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+	if err := w.Do(phaseErrorTask{id: "logged-task"}); err != nil {
+		t.Fatal(err)
+	}
+	for event, key := range map[string]string{workerEventReceived: "task_name", workerEventDone: "task_id"} {
+		entries := logs.FilterMessage(event).AllUntimed()
+		if len(entries) != 1 {
+			t.Fatalf("%s log count=%d, want 1", event, len(entries))
+		}
+		fields := entries[0].ContextMap()
+		if fields["worker"] != "logged-worker" || fields[key] != "logged-task" {
+			t.Fatalf("%s fields=%v", event, fields)
+		}
+	}
+}
+
+type countingTask struct {
+	count *int32
+}
+
+func (t countingTask) Init(context.Context) error { return nil }
+func (t countingTask) Run(context.Context) error {
+	atomic.AddInt32(t.count, 1)
+	return nil
+}
+func (t countingTask) Done(context.Context) error { return nil }
+func (t countingTask) ID() string                 { return "counting-task" }

@@ -1,11 +1,14 @@
 package durable
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -15,9 +18,18 @@ import (
 var (
 	metadataBucket = []byte("go-worker-durable-meta")
 	jobsBucket     = []byte("go-worker-durable-jobs")
-	versionKey     = []byte("schema-version")
-	errNoReadyJob  = errors.New("no ready durable job")
+	// readyBucket indexes pending jobs by readyKey; each value is the JobID.
+	readyBucket   = []byte("go-worker-durable-ready")
+	versionKey    = []byte("schema-version")
+	errNoReadyJob = errors.New("no ready durable job")
+
+	// ErrInvalidPurge means Purge was given no state or a non-terminal state.
+	ErrInvalidPurge = errors.New("invalid durable purge request")
 )
+
+// schemaVersion 2 adds readyBucket. Opening a version 1 file migrates it in
+// place; binaries that only support version 1 then reject the file.
+const schemaVersion = "2"
 
 // Queue owns a synchronous bbolt database and permits one active runner.
 // The OS file lock also prevents another process from owning the same file.
@@ -32,6 +44,8 @@ type Queue struct {
 // Open creates or opens a queue and reconciles interrupted Running attempts.
 // It waits at most one second for the exclusive database file lock. The parent
 // directory must exist. Sync-on-commit is enabled and is not configurable here.
+// A schema version 1 file is migrated to version 2 while opening, in the same
+// transaction that validates the schema.
 func Open(path string) (*Queue, error) {
 	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: time.Second})
 	if err != nil {
@@ -43,14 +57,26 @@ func Open(path string) (*Queue, error) {
 		if err != nil {
 			return err
 		}
-		if version := meta.Get(versionKey); version != nil && string(version) != "1" {
-			return ErrSchema
-		}
-		if err := meta.Put(versionKey, []byte("1")); err != nil {
+		if _, err := tx.CreateBucketIfNotExists(jobsBucket); err != nil {
 			return err
 		}
-		_, err = tx.CreateBucketIfNotExists(jobsBucket)
-		return err
+		switch version := meta.Get(versionKey); {
+		case version == nil:
+			if _, err := tx.CreateBucket(readyBucket); err != nil {
+				return err
+			}
+		case string(version) == "1":
+			if err := migrateV1(tx); err != nil {
+				return err
+			}
+		case string(version) == schemaVersion:
+			if tx.Bucket(readyBucket) == nil {
+				return fmt.Errorf("%w: missing ready index", ErrSchema)
+			}
+		default:
+			return ErrSchema
+		}
+		return meta.Put(versionKey, []byte(schemaVersion))
 	})
 	if err == nil {
 		err = q.recoverInterrupted()
@@ -110,7 +136,7 @@ func (q *Queue) Enqueue(ctx context.Context, spec Spec) (Job, error) {
 			job = existing
 			return nil
 		}
-		return putJob(bucket, job)
+		return saveJob(tx, nil, job)
 	})
 	if err != nil {
 		return Job{}, err
@@ -137,8 +163,8 @@ func (q *Queue) Job(ctx context.Context, id string) (Job, error) {
 	return job, err
 }
 
-// Jobs lists detached snapshots in JobID order. Empty state includes all jobs.
-// This small-queue API does not imply FIFO dispatch or load the Tasks themselves.
+// Jobs lists detached snapshots in JobID order, which is not dispatch order.
+// Empty state includes all jobs. It reads every record and does not build Tasks.
 func (q *Queue) Jobs(ctx context.Context, state State) ([]Job, error) {
 	var jobs []Job
 	err := q.view(func(tx *bolt.Tx) error {
@@ -181,13 +207,83 @@ func (q *Queue) recoverInterrupted() error {
 		}
 		now := time.Now().UTC()
 		for _, job := range interrupted {
+			// A Running job has no ready index entry to remove.
 			job.unsuccessful(Outcome{Interrupted: true, Error: "interrupted before durable completion"}, now)
-			if err := putJob(bucket, job); err != nil {
+			if err := saveJob(tx, nil, job); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
+}
+
+// migrateV1 builds the ready index for an existing version 1 file.
+func migrateV1(tx *bolt.Tx) error {
+	ready, err := tx.CreateBucket(readyBucket)
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(jobsBucket).ForEach(func(_, data []byte) error {
+		job, err := decodeJob(data)
+		if err != nil || job.State != Pending {
+			return err
+		}
+		return ready.Put(readyKey(job), []byte(job.ID))
+	})
+}
+
+// Purge deletes jobs in the given terminal states (Succeeded, Failed, or
+// Unknown) whose last update is before cutoff, and returns how many it
+// deleted. At least one state is required, so Unknown jobs kept for
+// investigation are removed only when requested. A purged JobID is forgotten:
+// a later Enqueue with that ID creates a new job. Purge scans every record and
+// may run while Run is active, because Run never changes terminal jobs.
+func (q *Queue) Purge(ctx context.Context, cutoff time.Time, states ...State) (int, error) {
+	if len(states) == 0 {
+		return 0, ErrInvalidPurge
+	}
+	for _, state := range states {
+		switch state {
+		case Succeeded, Failed, Unknown:
+		default:
+			return 0, ErrInvalidPurge
+		}
+	}
+	var purged int
+	err := q.update(func(tx *bolt.Tx) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		bucket := tx.Bucket(jobsBucket)
+		var ids [][]byte
+		// Collect first: changing a bucket during ForEach invalidates its cursor.
+		if err := bucket.ForEach(func(key, data []byte) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			job, err := decodeJob(data)
+			if err != nil {
+				return err
+			}
+			if job.UpdatedAt.Before(cutoff) && slices.Contains(states, job.State) {
+				ids = append(ids, bytes.Clone(key))
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if err := bucket.Delete(id); err != nil {
+				return err
+			}
+		}
+		purged = len(ids)
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return purged, nil
 }
 
 func (q *Queue) claim(ctx context.Context) (Job, bool, error) {
@@ -197,28 +293,33 @@ func (q *Queue) claim(ctx context.Context) (Job, bool, error) {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		bucket := tx.Bucket(jobsBucket)
-		cursor := bucket.Cursor()
-		for key, data := cursor.First(); key != nil; key, data = cursor.Next() {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			job, err := decodeJob(data)
-			if err != nil {
-				return err
-			}
-			if job.State != Pending || job.NextAttemptAt.After(now) {
-				continue
-			}
-			job.State = Running
-			job.Attempts++
-			job.UpdatedAt = now
-			job.NextAttemptAt = time.Time{}
-			claimed = job
-			return putJob(bucket, job)
+		// The earliest index entry is the next job to become ready.
+		key, id := tx.Bucket(readyBucket).Cursor().First()
+		if key != nil && len(key) < 8 {
+			return fmt.Errorf("%w: invalid ready index key", ErrSchema)
 		}
-		// Roll back an empty scan instead of fsyncing an idle transaction.
-		return errNoReadyJob
+		if key == nil || readyTime(key).After(now) {
+			// Roll back an empty claim instead of fsyncing an idle transaction.
+			return errNoReadyJob
+		}
+		data := tx.Bucket(jobsBucket).Get(id)
+		if data == nil {
+			return fmt.Errorf("%w: ready index references a missing job", ErrSchema)
+		}
+		job, err := decodeJob(data)
+		if err != nil {
+			return err
+		}
+		if job.State != Pending {
+			return fmt.Errorf("%w: ready index references a %s job", ErrSchema, job.State)
+		}
+		previous := job
+		job.State = Running
+		job.Attempts++
+		job.UpdatedAt = now
+		job.NextAttemptAt = time.Time{}
+		claimed = job
+		return saveJob(tx, &previous, job)
 	})
 	if errors.Is(err, errNoReadyJob) {
 		return Job{}, false, nil
@@ -240,8 +341,9 @@ func (q *Queue) changeJob(id string, change func(*Job)) error {
 		if err != nil {
 			return err
 		}
+		previous := job
 		change(&job)
-		return putJob(bucket, job)
+		return saveJob(tx, &previous, job)
 	})
 	if err == nil {
 		q.signal()
@@ -295,6 +397,39 @@ func decodeJob(data []byte) (Job, error) {
 		return Job{}, fmt.Errorf("%w: invalid job state", ErrSchema)
 	}
 	return job, nil
+}
+
+// readyKey orders pending jobs by the time they became eligible, then JobID:
+// NextAttemptAt when delayed, otherwise the update that made them pending.
+func readyKey(job Job) []byte {
+	at := job.NextAttemptAt
+	if at.IsZero() {
+		at = job.UpdatedAt
+	}
+	key := binary.BigEndian.AppendUint64(make([]byte, 0, 8+len(job.ID)), uint64(at.UnixNano()))
+	return append(key, job.ID...)
+}
+
+func readyTime(key []byte) time.Time {
+	return time.Unix(0, int64(binary.BigEndian.Uint64(key[:8]))).UTC()
+}
+
+// saveJob writes job and keeps the ready index equal to the set of pending
+// jobs. previous is the stored record being replaced, or nil for none or a
+// record that was not pending.
+func saveJob(tx *bolt.Tx, previous *Job, job Job) error {
+	ready := tx.Bucket(readyBucket)
+	if previous != nil && previous.State == Pending {
+		if err := ready.Delete(readyKey(*previous)); err != nil {
+			return err
+		}
+	}
+	if job.State == Pending {
+		if err := ready.Put(readyKey(job), []byte(job.ID)); err != nil {
+			return err
+		}
+	}
+	return putJob(tx.Bucket(jobsBucket), job)
 }
 
 func putJob(bucket *bolt.Bucket, job Job) error {

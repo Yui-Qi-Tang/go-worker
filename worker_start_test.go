@@ -68,13 +68,13 @@ func TestMasterWakeAllWorkersUpRemovesStoppedWorker(t *testing.T) {
 	if got := ms.WakeAllWorkersUp(); got != ErrWorkerStopped {
 		t.Fatalf("WakeAllWorkersUp() error = %v, want %v", got, ErrWorkerStopped)
 	}
-	if got := ms.GetWorkers(); got != 0 {
+	if got := ms.Workers(); got != 0 {
 		t.Fatalf("workers after stopped worker wakeup = %d, want 0", got)
 	}
 
 	done := make(chan error, 1)
 	go func() {
-		done <- ms.Dispatch(phaseErrorTask{id: "after-stopped-worker"})
+		done <- ms.Schedule(phaseErrorTask{id: "after-stopped-worker"})
 	}()
 
 	select {
@@ -92,7 +92,7 @@ func TestMasterWakeAllWorkersUpStartsRemainingWorkersAfterStoppedWorker(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	ms.WorkerQueue = make(chan *Worker, 2)
+	ms.workerQueue = make(chan *Worker, 2)
 	defer ms.Stop()
 
 	stopped, err := NewWorker(WithName("stopped-wakeup-worker"))
@@ -115,7 +115,7 @@ func TestMasterWakeAllWorkersUpStartsRemainingWorkersAfterStoppedWorker(t *testi
 	if got := ms.WakeAllWorkersUp(); got != ErrWorkerStopped {
 		t.Fatalf("WakeAllWorkersUp() error = %v, want %v", got, ErrWorkerStopped)
 	}
-	if got := ms.GetWorkers(); got != 1 {
+	if got := ms.Workers(); got != 1 {
 		t.Fatalf("workers after stopped worker wakeup = %d, want 1", got)
 	}
 	if got := dispatchWithTimeout(t, ms, normal); got != nil {
@@ -139,7 +139,7 @@ func TestMasterAddWorkerRejectsStoppedWorkerWithoutPoolMutation(t *testing.T) {
 	if got := ms.AddWorker(w); got != ErrWorkerStopped {
 		t.Fatalf("AddWorker(stopped worker) error = %v, want %v", got, ErrWorkerStopped)
 	}
-	if got := ms.GetWorkers(); got != 0 {
+	if got := ms.Workers(); got != 0 {
 		t.Fatalf("workers after rejected stopped worker = %d, want 0", got)
 	}
 }

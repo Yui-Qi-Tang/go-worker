@@ -28,7 +28,7 @@ func TestMasterMethodsRejectUninitializedMaster(t *testing.T) {
 		},
 		{
 			name: "Dispatch",
-			call: func() error { return ms.Dispatch(phaseErrorTask{id: "uninitialized-dispatch"}) },
+			call: func() error { return ms.Schedule(phaseErrorTask{id: "uninitialized-dispatch"}) },
 		},
 		{
 			name: "Schedule",
@@ -52,10 +52,10 @@ func TestMasterMethodsRejectUninitializedMaster(t *testing.T) {
 		ms.Stop()
 	})
 
-	if got := ms.GetWorkers(); got != 0 {
+	if got := ms.Workers(); got != 0 {
 		t.Fatalf("GetWorkers() = %d, want 0", got)
 	}
-	if got := ms.GetPoolSize(); got != 0 {
+	if got := ms.Workers(); got != 0 {
 		t.Fatalf("GetPoolSize() = %d, want 0", got)
 	}
 }
@@ -75,7 +75,7 @@ func TestNilMasterMethodsRejectUninitializedMaster(t *testing.T) {
 	if got := ms.AddWorkers(1); got != ErrMasterNotInitialized {
 		t.Fatalf("AddWorkers() error = %v, want %v", got, ErrMasterNotInitialized)
 	}
-	if got := ms.Dispatch(phaseErrorTask{id: "nil-master"}); got != ErrMasterNotInitialized {
+	if got := ms.Schedule(phaseErrorTask{id: "nil-master"}); got != ErrMasterNotInitialized {
 		t.Fatalf("Dispatch() error = %v, want %v", got, ErrMasterNotInitialized)
 	}
 	if got := ms.WakeAllWorkersUp(); got != ErrMasterNotInitialized {
@@ -92,13 +92,13 @@ func TestUninitializedMasterRecoveryWorkerReturns(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		ms.RecoveryWorker()
+		ms.recoveryLoop()
 		close(done)
 	}()
 
 	select {
 	case <-done:
 	case <-time.After(time.Second):
-		t.Fatal("RecoveryWorker blocked on uninitialized master")
+		t.Fatal("recoveryLoop blocked on uninitialized master")
 	}
 }

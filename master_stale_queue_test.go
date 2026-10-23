@@ -7,7 +7,7 @@ func TestMasterScheduleSkipsRemovedQueuedWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ms.WorkerQueue = make(chan *Worker, 2)
+	ms.workerQueue = make(chan *Worker, 2)
 	defer ms.Stop()
 
 	stale, err := NewWorker(WithName("stale-worker"))
@@ -44,7 +44,7 @@ func TestMasterScheduleSkipsQueuedWorkerWithReusedIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ms.WorkerQueue = make(chan *Worker, 3)
+	ms.workerQueue = make(chan *Worker, 3)
 	defer ms.Stop()
 
 	stale, err := NewWorker(WithName("reused-worker"))
@@ -63,7 +63,7 @@ func TestMasterScheduleSkipsQueuedWorkerWithReusedIdentity(t *testing.T) {
 		t.Fatal("failed to remove stale worker from pool")
 	}
 
-	ms.WorkerQueue <- stale
+	ms.workerQueue <- stale
 
 	replacement, err := NewWorker(WithName("reused-worker"))
 	if err != nil {
@@ -81,5 +81,26 @@ func TestMasterScheduleSkipsQueuedWorkerWithReusedIdentity(t *testing.T) {
 	}
 	if !workerInPool(ms, replacement) {
 		t.Fatal("master removed the replacement worker after seeing a stale queued worker with the same identity")
+	}
+}
+
+func TestMasterQueuesWorkerWhenTokenBufferIsFull(t *testing.T) {
+	ms, err := NewMaster()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Stale tokens can fill the buffer; a release must still reach dispatch.
+	ms.workerQueue = make(chan *Worker)
+	defer ms.Stop()
+
+	worker, err := NewWorker(WithName("full-buffer-worker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ms.AddWorker(worker); err != nil {
+		t.Fatal(err)
+	}
+	if got := receiveQueuedWorker(t, ms); got != worker {
+		t.Fatal("master queued an unexpected worker")
 	}
 }
