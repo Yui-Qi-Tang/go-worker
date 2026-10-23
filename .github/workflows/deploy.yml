@@ -31,3 +31,16 @@ jobs:
 
       - name: Test with race detector
         run: go test -race ./...
+
+      - name: Check module tidiness
+        run: |
+          go mod tidy -diff
+          (cd benchmarks && go mod tidy -diff)
+
+      - name: Vet benchmarks module
+        working-directory: benchmarks
+        run: go vet ./...
+
+      - name: Check benchmark harness with race detector
+        working-directory: benchmarks
+        run: go test -race -run '^$' -bench '^BenchmarkPool$' -benchtime=100x -cpu=8 -timeout=2m
