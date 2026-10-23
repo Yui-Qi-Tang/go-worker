@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
 	worker "github.com/Yui-Qi-Tang/go-worker"
 	"github.com/Yui-Qi-Tang/go-worker/durable"
-	"go.uber.org/zap"
 )
 
 // writeTask completes and syncs the required file write before returning. Writing
@@ -64,7 +64,7 @@ func runExample(dir string) (err error) {
 	// This job is already durable, even though the Master does not exist yet.
 	fmt.Println(accepted.State)
 
-	m, err := worker.NewMaster(worker.WithWorkers(1, 1), worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
+	m, err := worker.NewMaster(worker.WithWorkers(1, 1), worker.WithQueueCapacity(1), worker.WithMasterLogger(slog.New(slog.DiscardHandler)))
 	if err != nil {
 		return err
 	}

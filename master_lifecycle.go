@@ -101,9 +101,5 @@ func (m *Master) finishShutdown() {
 	m.stopDrainerLocked()
 	m.mu.Unlock()
 	m.background.Wait()
-
-	if m.ownsLogger {
-		_ = m.logger.Sync()
-	}
 	close(m.done)
 }

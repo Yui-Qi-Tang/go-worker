@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	worker "github.com/Yui-Qi-Tang/go-worker"
-	"go.uber.org/zap"
 )
 
 type testTask struct {
@@ -43,7 +43,7 @@ func (t *testTask) Done(context.Context) error {
 
 func testMaster(t *testing.T, workers int, options ...worker.MasterOption) *worker.Master {
 	t.Helper()
-	options = append(options, worker.WithWorkers(workers, workers), worker.WithQueueCapacity(workers), worker.WithMasterLogger(zap.NewNop()))
+	options = append(options, worker.WithWorkers(workers, workers), worker.WithQueueCapacity(workers), worker.WithMasterLogger(slog.New(slog.DiscardHandler)))
 	m, err := worker.NewMaster(options...)
 	if err != nil {
 		t.Fatal(err)

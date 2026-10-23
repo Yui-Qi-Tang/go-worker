@@ -3,13 +3,11 @@ package worker
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 func recoveryLimit(limit int) MasterOption {
@@ -166,19 +164,19 @@ func TestNoReplacementAfterStop(t *testing.T) {
 	}
 }
 
-type failureLogCore struct {
-	zapcore.Core
-	write func(zapcore.Entry)
-}
+// funcHandler calls handle for every log record, to make logging panic or block.
+type funcHandler struct{ handle func(slog.Record) }
 
-func (c failureLogCore) Enabled(zapcore.Level) bool { return true }
-func (c failureLogCore) Check(e zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
-	return ce.AddCore(e, c)
+func (h funcHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h funcHandler) WithAttrs([]slog.Attr) slog.Handler       { return h }
+func (h funcHandler) WithGroup(string) slog.Handler            { return h }
+func (h funcHandler) Handle(_ context.Context, r slog.Record) error {
+	h.handle(r)
+	return nil
 }
-func (c failureLogCore) Write(e zapcore.Entry, _ []zapcore.Field) error { c.write(e); return nil }
 
 func TestStartupPanicsAreBoundedEvenWhenDiagnosticLoggerPanics(t *testing.T) {
-	logger := zap.New(failureLogCore{Core: zapcore.NewNopCore(), write: func(zapcore.Entry) { panic("logger failure") }})
+	logger := slog.New(funcHandler{handle: func(slog.Record) { panic("logger failure") }})
 	m := newFeatureMaster(t, 1, recoveryLimit(3), WithMasterLogger(logger))
 	stats := waitForRecoveryStats(t, m, func(s RecoveryStats) bool { return s.Exhausted == 1 })
 	if stats.Attempts != 3 || stats.Started != 3 || stats.Failed != 0 {
@@ -197,8 +195,8 @@ func TestPanicResultPrecedesBlockingDiagnosticLog(t *testing.T) {
 	var once sync.Once
 	unblock := func() { once.Do(func() { close(release) }) }
 	t.Cleanup(unblock)
-	logger := zap.New(failureLogCore{Core: zapcore.NewNopCore(), write: func(e zapcore.Entry) {
-		if e.Message == workerPanic {
+	logger := slog.New(funcHandler{handle: func(r slog.Record) {
+		if r.Message == workerPanic {
 			close(entered)
 			<-release
 		}

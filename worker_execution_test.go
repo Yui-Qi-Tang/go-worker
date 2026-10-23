@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type executionTraceTask struct {
@@ -67,7 +65,7 @@ func TestWorkerExecutionOrderAndFailureBoundaries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			w.logger = zap.NewNop()
+			w.logger = nopLogger()
 			t.Cleanup(w.Stop)
 			if err := w.Start(); err != nil {
 				t.Fatal(err)
@@ -96,7 +94,7 @@ func TestConcurrentDoKeepsTaskResultsSeparate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.logger = zap.NewNop()
+	w.logger = nopLogger()
 	t.Cleanup(w.Stop)
 	if err := w.Start(); err != nil {
 		t.Fatal(err)
@@ -164,7 +162,7 @@ func TestWorkerReportsNilPanicWithModernGoSemantics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.logger = zap.NewNop()
+	w.logger = nopLogger()
 	t.Cleanup(w.Stop)
 	if err := w.Start(); err != nil {
 		t.Fatal(err)

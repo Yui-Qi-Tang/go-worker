@@ -275,11 +275,8 @@ one on its own.
 
 ```go
 func newLoggedPool() (*worker.Master, error) {
-	logger, err := zap.NewProduction()
-	if err != nil {
-		return nil, err
-	}
-	// Call logger.Sync() when you are done with the pool.
+	// Log warnings and errors as JSON; per-task Info events are skipped.
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	return worker.NewMaster(worker.WithWorkers(2, 8), worker.WithQueueCapacity(8), worker.WithMasterLogger(logger))
 }
 
@@ -381,9 +378,10 @@ any rolling minute across the pool unless `WithRecoveryPolicy` says otherwise;
 while a panicked worker is unreplaced, workers added for load count against the
 same limit. When the window allows, the master restores the pool by itself.
 
-**Logging and stats.** `WithLogger` sets a standalone worker's logger;
-`WithMasterLogger` sets the logger for the master's workers. You own an injected
-logger and its final `Sync`. `Stats()` counters satisfy
+**Logging and stats.** Logging uses `log/slog`. `WithLogger` sets a standalone
+worker's logger and `WithMasterLogger` the logger for the master's workers; both
+default to `slog.Default()`. Each task logs `received-task` and `done` at Info
+and failures at Error. `Stats()` counters satisfy
 `Started = Succeeded + Failed + Panicked + InFlight`.
 
 **Durable jobs.** See the [durable package](durable/README.md) and its
@@ -428,6 +426,8 @@ follows semantic versioning. Compared with unreleased checkouts under
 - always replaces panicked workers under a pool-wide `RecoveryPolicy`, so
   `WithWorkerRecovery` and `RecoveryWorker` are removed;
 - removes the `Dispatch` alias;
+- logs through `log/slog` instead of zap: `WithLogger` and `WithMasterLogger`
+  take a `*slog.Logger`;
 - migrates durable queue files to schema version 2 when opened.
 
 ## License

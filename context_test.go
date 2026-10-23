@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // ctxTask reports the context its Run phase received and blocks until it is
@@ -50,7 +48,7 @@ func (t *ctxTask) awaitSeen(tb testing.TB) error {
 
 func startedWorker(t *testing.T) *Worker {
 	t.Helper()
-	w, err := NewWorker(WithLogger(zap.NewNop()))
+	w, err := NewWorker(WithLogger(nopLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}

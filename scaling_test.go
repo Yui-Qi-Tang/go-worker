@@ -4,14 +4,12 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 func newScalingMaster(t *testing.T, minWorkers, maxWorkers int, opts ...MasterOption) *Master {
 	t.Helper()
 	m, err := NewMaster(append([]MasterOption{
-		WithMasterLogger(zap.NewNop()), WithWorkers(minWorkers, maxWorkers), WithIdleTimeout(20 * time.Millisecond),
+		WithMasterLogger(nopLogger()), WithWorkers(minWorkers, maxWorkers), WithIdleTimeout(20 * time.Millisecond),
 	}, opts...)...)
 	if err != nil {
 		t.Fatal(err)

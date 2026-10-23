@@ -2,7 +2,7 @@ package worker
 
 import (
 	"context"
-	"go.uber.org/zap"
+	"log/slog"
 )
 
 // taskRequest carries a task and where its result goes: future for a
@@ -19,29 +19,29 @@ func newTaskRequest(task Task) *taskRequest {
 
 func (w *Worker) executeTask(ctx context.Context, task Task, result *Result) {
 	// ID is read even when logging is disabled; Result.TaskID depends on it.
-	// Check avoids building log fields for a disabled level on every task.
+	// Enabled avoids building log attributes for a disabled level on every task.
 	taskID := readTaskID(task, result)
-	if ce := w.logger.Check(zap.InfoLevel, workerEventReceived); ce != nil {
-		ce.Write(zap.String("worker", w.name), zap.String("task_name", taskID))
+	if w.logger.Enabled(ctx, slog.LevelInfo) {
+		w.logger.LogAttrs(ctx, slog.LevelInfo, workerEventReceived, slog.String("worker", w.name), slog.String("task_name", taskID))
 	}
 	result.Phase = PhaseInit
 	if err := task.Init(ctx); err != nil {
-		w.taskFailure(task, result, ErrWorkerTaskInit, err, workerErrInit)
+		w.taskFailure(ctx, task, result, ErrWorkerTaskInit, err, workerErrInit)
 		return
 	}
 	result.Phase = PhaseRun
 	if err := task.Run(ctx); err != nil {
-		w.taskFailure(task, result, ErrWorkerTaskRun, err, workerErrRun)
+		w.taskFailure(ctx, task, result, ErrWorkerTaskRun, err, workerErrRun)
 		return
 	}
 	result.Phase = PhaseDone
 	if err := task.Done(ctx); err != nil {
-		w.taskFailure(task, result, ErrWorkerTaskDone, err, workerErrDone)
+		w.taskFailure(ctx, task, result, ErrWorkerTaskDone, err, workerErrDone)
 		return
 	}
 	taskID = readTaskID(task, result)
-	if ce := w.logger.Check(zap.InfoLevel, workerEventDone); ce != nil {
-		ce.Write(zap.String("worker", w.name), zap.String("task_id", taskID))
+	if w.logger.Enabled(ctx, slog.LevelInfo) {
+		w.logger.LogAttrs(ctx, slog.LevelInfo, workerEventDone, slog.String("worker", w.name), slog.String("task_id", taskID))
 	}
 	result.Phase = ""
 }
@@ -54,9 +54,9 @@ func readTaskID(task Task, result *Result) string {
 	return result.TaskID
 }
 
-func (w *Worker) taskFailure(task Task, result *Result, sentinel, cause error, event string) {
+func (w *Worker) taskFailure(ctx context.Context, task Task, result *Result, sentinel, cause error, event string) {
 	result.Err, result.Cause = sentinel, cause
-	w.logger.Error(event, zap.String("worker", w.name), zap.String("task_name", readTaskID(task, result)), zap.Any("reason", cause))
+	w.logger.LogAttrs(ctx, slog.LevelError, event, slog.String("worker", w.name), slog.String("task_name", readTaskID(task, result)), slog.Any("reason", cause))
 }
 
 func (w *Worker) reportTaskResult(request *taskRequest, result Result) { request.reply(result) }

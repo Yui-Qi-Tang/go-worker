@@ -8,12 +8,12 @@ package worker
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"runtime/debug"
 	"sync"
 	"time"
 
 	guuid "github.com/google/uuid"
-	"go.uber.org/zap"
 )
 
 const (
@@ -65,7 +65,7 @@ type Worker struct {
 	// owner is the master whose queues a pool worker serves; nil if standalone.
 	owner *Master
 
-	logger           *zap.Logger
+	logger           *slog.Logger
 	loggerConfigured bool
 	metrics          taskMetrics
 	ownerMetrics     *taskMetrics
@@ -94,9 +94,9 @@ func WithName(name string) Option {
 	}
 }
 
-// WithLogger supplies the worker logger. The caller owns the logger and its
-// final Sync; the worker never closes it. A nil logger is rejected.
-func WithLogger(logger *zap.Logger) Option {
+// WithLogger sets the worker's logger. The default is slog.Default(). A nil
+// logger is rejected.
+func WithLogger(logger *slog.Logger) Option {
 	return func(w *Worker) {
 		w.logger = logger
 		w.loggerConfigured = true
@@ -120,11 +120,7 @@ func NewWorker(opts ...Option) (*Worker, error) {
 		return nil, ErrInvalidLogger
 	}
 	if w.logger == nil {
-		logger, err := newDefaultLogger()
-		if err != nil {
-			return nil, err
-		}
-		w.logger = logger
+		w.logger = slog.Default()
 	}
 	return w, nil
 }
@@ -135,9 +131,8 @@ func newPoolWorker(m *Master) (*Worker, error) {
 	w := &Worker{
 		name: guuid.New().String(), owner: m,
 		quit: make(chan any), task: make(chan *taskRequest),
-		done: make(chan struct{}),
-		// The master owns the shared logger and its Sync.
-		logger: m.logger, loggerConfigured: true,
+		done:   make(chan struct{}),
+		logger: m.logger,
 	}
 	return w, nil
 }
@@ -197,7 +192,7 @@ func (w *Worker) run() {
 	defer cancel()
 	defer w.recoverRun(&st)
 
-	w.logger.Info(workerEventStart, zap.String("worker", w.name))
+	w.logger.Info(workerEventStart, "worker", w.name)
 	if w.owner != nil {
 		w.servePool(ctx, &st)
 		return
@@ -205,10 +200,7 @@ func (w *Worker) run() {
 	for {
 		select {
 		case <-w.quit:
-			w.logger.Info(workerEventQuit, zap.String("worker", w.name))
-			if !w.loggerConfigured {
-				_ = w.logger.Sync()
-			}
+			w.logger.Info(workerEventQuit, "worker", w.name)
 			return
 		case request := <-w.task:
 			if w.isStopped() {
@@ -342,10 +334,7 @@ func (w *Worker) recoverRun(st *runState) {
 // The original failure is already available through the task result.
 func (w *Worker) logPanic(reason any) {
 	defer func() { _ = recover() }()
-	w.logger.Error(workerPanic, zap.String("worker", w.name), zap.Any("reason", reason))
-	if !w.loggerConfigured {
-		_ = w.logger.Sync()
-	}
+	w.logger.Error(workerPanic, "worker", w.name, "reason", reason)
 }
 
 func (w *Worker) finishTask(owner *taskMetrics, result Result) {

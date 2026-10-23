@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,7 +13,6 @@ import (
 	worker "github.com/Yui-Qi-Tang/go-worker"
 	"github.com/alitto/pond/v2"
 	"github.com/panjf2000/ants/v2"
-	"go.uber.org/zap"
 )
 
 const queueCapacity = 64
@@ -95,7 +95,7 @@ func runChannel(_ *testing.B, workers, tasks int, job func()) {
 }
 
 func runGoWorker(b *testing.B, workers, tasks int, job func()) {
-	m, err := worker.NewMaster(worker.WithWorkers(workers, workers), worker.WithQueueCapacity(queueCapacity), worker.WithMasterLogger(zap.NewNop()))
+	m, err := worker.NewMaster(worker.WithWorkers(workers, workers), worker.WithQueueCapacity(queueCapacity), worker.WithMasterLogger(slog.New(slog.DiscardHandler)))
 	if err != nil {
 		b.Fatal(err)
 	}

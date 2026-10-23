@@ -3,15 +3,13 @@ package worker
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 type functionTask struct {
@@ -47,7 +45,7 @@ func testContext(t *testing.T) context.Context {
 
 func newFeatureMaster(t *testing.T, count int, opts ...MasterOption) *Master {
 	t.Helper()
-	m, err := NewMaster(append([]MasterOption{WithMasterLogger(zap.NewNop()), WithWorkers(count, count)}, opts...)...)
+	m, err := NewMaster(append([]MasterOption{WithMasterLogger(nopLogger()), WithWorkers(count, count)}, opts...)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +194,7 @@ func TestScheduleCancellationRaceHasExactlyOneOutcome(t *testing.T) {
 }
 
 func TestWorkerShutdownWaitsForActiveTaskAndHandlesUnstartedWorker(t *testing.T) {
-	w, err := NewWorker(WithLogger(zap.NewNop()))
+	w, err := NewWorker(WithLogger(nopLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +231,7 @@ func TestWorkerShutdownWaitsForActiveTaskAndHandlesUnstartedWorker(t *testing.T)
 		t.Fatalf("stats=%+v", got)
 	}
 
-	unstarted, err := NewWorker(WithLogger(zap.NewNop()))
+	unstarted, err := NewWorker(WithLogger(nopLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +287,7 @@ func TestResultsPreservePhaseCausesAndPanicDetails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w, err := NewWorker(WithLogger(zap.NewNop()))
+			w, err := NewWorker(WithLogger(nopLogger()))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -326,8 +324,8 @@ func TestGoexitStillCompletesFutureAndAllowsRecovery(t *testing.T) {
 }
 
 func TestLoggerAndCumulativeStatsSurviveRecovery(t *testing.T) {
-	core, logs := observer.New(zap.InfoLevel)
-	logger := zap.New(core)
+	logs := &recordingHandler{}
+	logger := slog.New(logs)
 	m := newFeatureMaster(t, 1, WithMasterLogger(logger))
 	old := currentWorker(t, m)
 	cause := errors.New("failure")
@@ -344,7 +342,7 @@ func TestLoggerAndCumulativeStatsSurviveRecovery(t *testing.T) {
 	if replacement == old || replacement.logger != logger {
 		t.Fatal("replacement did not inherit logger")
 	}
-	if got := logs.FilterMessage(workerEventStart).Len(); got != 2 {
+	if got := len(logs.messages(workerEventStart)); got != 2 {
 		t.Fatalf("start log count=%d", got)
 	}
 	if got := replacement.Stats().Succeeded; got != 1 {
@@ -735,8 +733,8 @@ func TestLegacyNilPanicStillCompletesTask(t *testing.T) {
 }
 
 func TestWorkerLogsTaskEventsWhenInfoEnabled(t *testing.T) {
-	core, logs := observer.New(zap.InfoLevel)
-	w, err := NewWorker(WithName("logged-worker"), WithLogger(zap.New(core)))
+	logs := &recordingHandler{}
+	w, err := NewWorker(WithName("logged-worker"), WithLogger(slog.New(logs)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -748,11 +746,12 @@ func TestWorkerLogsTaskEventsWhenInfoEnabled(t *testing.T) {
 		t.Fatal(err)
 	}
 	for event, key := range map[string]string{workerEventReceived: "task_name", workerEventDone: "task_id"} {
-		entries := logs.FilterMessage(event).AllUntimed()
-		if len(entries) != 1 {
-			t.Fatalf("%s log count=%d, want 1", event, len(entries))
+		records := logs.messages(event)
+		if len(records) != 1 {
+			t.Fatalf("%s log count=%d, want 1", event, len(records))
 		}
-		fields := entries[0].ContextMap()
+		fields := map[string]string{}
+		records[0].Attrs(func(a slog.Attr) bool { fields[a.Key] = a.Value.String(); return true })
 		if fields["worker"] != "logged-worker" || fields[key] != "logged-task" {
 			t.Fatalf("%s fields=%v", event, fields)
 		}
@@ -770,3 +769,33 @@ func (t countingTask) Run(context.Context) error {
 }
 func (t countingTask) Done(context.Context) error { return nil }
 func (t countingTask) ID() string                 { return "counting-task" }
+
+func nopLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
+
+// recordingHandler keeps every log record for assertions.
+type recordingHandler struct {
+	mu      sync.Mutex
+	records []slog.Record
+}
+
+func (h *recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h *recordingHandler) WithAttrs([]slog.Attr) slog.Handler       { return h }
+func (h *recordingHandler) WithGroup(string) slog.Handler            { return h }
+func (h *recordingHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.records = append(h.records, r.Clone())
+	return nil
+}
+
+func (h *recordingHandler) messages(msg string) []slog.Record {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var out []slog.Record
+	for _, r := range h.records {
+		if r.Message == msg {
+			out = append(out, r)
+		}
+	}
+	return out
+}

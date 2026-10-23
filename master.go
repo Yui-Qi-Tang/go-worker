@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 // maxPoolSize bounds both the number of workers and the queue capacity.
@@ -36,9 +34,8 @@ type Master struct {
 	minWorkers, maxWorkers int
 	idleTimeout            time.Duration
 	queueCapacity          int
-	logger                 *zap.Logger
+	logger                 *slog.Logger
 	loggerConfigured       bool
-	ownsLogger             bool
 	recoveryPolicy         RecoveryPolicy
 	newWorker              func(*Master) (*Worker, error)
 
@@ -101,9 +98,9 @@ func WithIdleTimeout(d time.Duration) MasterOption {
 	return func(m *Master) { m.idleTimeout = d }
 }
 
-// WithMasterLogger sets the logger shared by the master's workers. The caller
-// owns the logger and its final Sync.
-func WithMasterLogger(logger *zap.Logger) MasterOption {
+// WithMasterLogger sets the logger shared by the master's workers. The
+// default is slog.Default().
+func WithMasterLogger(logger *slog.Logger) MasterOption {
 	return func(m *Master) { m.logger = logger; m.loggerConfigured = true }
 }
 
@@ -139,11 +136,7 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 		return nil, ErrInvalidRecoveryPolicy
 	}
 	if m.logger == nil {
-		logger, err := newDefaultLogger()
-		if err != nil {
-			return nil, err
-		}
-		m.logger, m.ownsLogger = logger, true
+		m.logger = slog.Default()
 	}
 	if m.queueCapacity > 0 {
 		m.queue = make(chan *taskRequest, m.queueCapacity)
@@ -160,17 +153,6 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 		return nil, err
 	}
 	return m, nil
-}
-
-func newDefaultLogger() (*zap.Logger, error) {
-	config := zap.NewProductionConfig()
-	config.Encoding = "console"
-	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	logger, err := config.Build()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create logger: %w", err)
-	}
-	return logger, nil
 }
 
 // Schedule waits for a worker and then for the task's outcome.
