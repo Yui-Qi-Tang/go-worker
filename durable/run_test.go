@@ -552,3 +552,96 @@ func TestCompletionPersistenceFailureIsReturnedAndReconciledOnReopen(t *testing.
 		t.Fatalf("uncommitted success must stay uncertain: %+v, %v", job, err)
 	}
 }
+
+func TestDispatchRetryWaitsForRepairedMaster(t *testing.T) {
+	q := openQueue(t)
+	accepted, err := q.Enqueue(context.Background(), spec("waits-for-capacity"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := worker.NewMaster(worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Stop()
+	var builds atomic.Int64
+	build := func(Job) (worker.Task, error) {
+		builds.Add(1)
+		return &testTask{}, nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- q.Run(ctx, m, build, 1, WithDispatchRetry(10*time.Millisecond)) }()
+
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for {
+		q.mu.Lock()
+		changed := q.changed
+		q.mu.Unlock()
+		job, err := q.Job(context.Background(), accepted.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A deferred dispatch is pending, refunded, and delayed.
+		if job.State == Pending && !job.NextAttemptAt.IsZero() {
+			if job.Attempts != 0 || builds.Load() != 0 {
+				t.Fatalf("deferred job = %+v, builds=%d", job, builds.Load())
+			}
+			break
+		}
+		select {
+		case <-changed:
+		case <-deadline.C:
+			t.Fatalf("job never deferred: %+v", job)
+		}
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("Run returned while waiting for capacity: %v", err)
+	default:
+	}
+
+	if err := m.AddWorkers(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.WakeAllWorkersUp(); err != nil {
+		t.Fatal(err)
+	}
+	if job := waitJob(t, q, accepted.ID, Succeeded); job.Attempts != 1 || builds.Load() != 1 {
+		t.Fatalf("finished = %+v, builds=%d", job, builds.Load())
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) || errors.Is(err, worker.ErrMasterWorkerPoolIsEmpty) {
+		t.Fatalf("Run = %v, want only cancellation", err)
+	}
+}
+
+func TestDispatchRetryStillStopsOnStoppedMaster(t *testing.T) {
+	q := openQueue(t)
+	accepted, err := q.Enqueue(context.Background(), spec("stopped-master"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := testMaster(t, 1)
+	m.Stop()
+	build := func(Job) (worker.Task, error) { return &testTask{}, nil }
+	if err := q.Run(context.Background(), m, build, 1, WithDispatchRetry(time.Millisecond)); !errors.Is(err, worker.ErrMasterStopped) {
+		t.Fatalf("Run = %v, want %v", err, worker.ErrMasterStopped)
+	}
+	if job, err := q.Job(context.Background(), accepted.ID); err != nil || job.State != Pending || job.Attempts != 0 || !job.NextAttemptAt.IsZero() {
+		t.Fatalf("job = %+v, %v", job, err)
+	}
+}
+
+func TestDispatchRetryRejectsNonPositiveDelay(t *testing.T) {
+	q := openQueue(t)
+	m := testMaster(t, 1)
+	build := func(Job) (worker.Task, error) { return &testTask{}, nil }
+	for _, delay := range []time.Duration{0, -time.Second} {
+		if err := q.Run(context.Background(), m, build, 1, WithDispatchRetry(delay)); err != ErrInvalidRunner {
+			t.Fatalf("WithDispatchRetry(%v) = %v, want %v", delay, err, ErrInvalidRunner)
+		}
+	}
+}

@@ -16,6 +16,37 @@ import (
 // A Builder should only reconstruct the Task; business effects belong to its phases.
 type Builder func(Job) (worker.Task, error)
 
+// RunOption configures Run.
+type RunOption func(*runConfig)
+
+type runConfig struct {
+	dispatchRetry bool
+	retryDelay    time.Duration
+}
+
+// WithDispatchRetry keeps Run going while the Master has no dispatch capacity:
+// its pool is empty, or worker replacement was exhausted or failed. The job
+// stays pending without spending a Task attempt, and the processor waits delay
+// before claiming again. Run continues until ctx is canceled or another error
+// occurs; restore capacity with Master.AddWorkers and WakeAllWorkersUp.
+// Without this option, those errors end Run. delay must be positive.
+func WithDispatchRetry(delay time.Duration) RunOption {
+	return func(c *runConfig) {
+		c.dispatchRetry = true
+		c.retryDelay = delay
+	}
+}
+
+// retryable reports whether err means only that the Master currently lacks
+// workers, which the application can repair without restarting Run.
+func (c runConfig) retryable(err error) bool {
+	return c.dispatchRetry && (errors.Is(err, worker.ErrMasterWorkerPoolIsEmpty) ||
+		errors.Is(err, worker.ErrRecoveryExhausted) || errors.Is(err, worker.ErrRecoveryFailed))
+}
+
+// errDispatchDeferred reports a retryable dispatch rejection already persisted.
+var errDispatchDeferred = errors.New("durable dispatch deferred")
+
 // Run dispatches through Master.Submit with at most concurrency in-flight jobs.
 // Configure the Master with a positive queue capacity. Run owns neither the
 // Master's lifecycle nor its Worker recovery policy. One Queue permits one Run.
@@ -23,11 +54,15 @@ type Builder func(Job) (worker.Task, error)
 // Cancellation stops new admission, then waits for accepted Tasks and commits
 // their outcomes before returning. It never binds Tasks to ctx or interrupts
 // their required work. A blocked Task can therefore delay Run's return.
-func (q *Queue) Run(ctx context.Context, master *worker.Master, build Builder, concurrency int) error {
+func (q *Queue) Run(ctx context.Context, master *worker.Master, build Builder, concurrency int, opts ...RunOption) error {
 	if q == nil || q.db == nil {
 		return ErrClosed
 	}
-	if master == nil || build == nil || concurrency < 1 {
+	var cfg runConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	if master == nil || build == nil || concurrency < 1 || (cfg.dispatchRetry && cfg.retryDelay <= 0) {
 		return ErrInvalidRunner
 	}
 	q.mu.Lock()
@@ -57,7 +92,7 @@ func (q *Queue) Run(ctx context.Context, master *worker.Master, build Builder, c
 	var wg sync.WaitGroup
 	for range concurrency {
 		wg.Go(func() {
-			if err := q.process(runCtx, master, build); err != nil {
+			if err := q.process(runCtx, master, build, cfg); err != nil {
 				failures <- err
 				cancel()
 			}
@@ -72,7 +107,7 @@ func (q *Queue) Run(ctx context.Context, master *worker.Master, build Builder, c
 	return errors.Join(result, ctx.Err())
 }
 
-func (q *Queue) process(ctx context.Context, master *worker.Master, build Builder) error {
+func (q *Queue) process(ctx context.Context, master *worker.Master, build Builder, cfg runConfig) error {
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -97,16 +132,26 @@ func (q *Queue) process(ctx context.Context, master *worker.Master, build Builde
 			timer.Stop()
 			continue
 		}
-		if err := q.execute(ctx, master, build, job); err != nil {
+		err = q.execute(ctx, master, build, job, cfg)
+		if errors.Is(err, errDispatchDeferred) {
+			timer := time.NewTimer(cfg.retryDelay)
+			select {
+			case <-ctx.Done():
+			case <-timer.C:
+			}
+			timer.Stop()
+			continue
+		}
+		if err != nil {
 			return err
 		}
 	}
 }
 
-func (q *Queue) execute(ctx context.Context, master *worker.Master, build Builder, job Job) error {
+func (q *Queue) execute(ctx context.Context, master *worker.Master, build Builder, job Job, cfg runConfig) error {
 	future, err := master.Submit(ctx, &rebuiltTask{job: job, build: build})
 	if err != nil {
-		return q.deferDispatch(job.ID, err)
+		return q.deferDispatch(job.ID, err, cfg)
 	}
 	// A canceled observation is not a completed Task. Retain ownership until the
 	// Task actually finishes, rather than allowing a second Run to overlap it.
@@ -117,7 +162,7 @@ func (q *Queue) execute(ctx context.Context, master *worker.Master, build Builde
 	if result.Err != nil && result.Phase == "" && result.Err != worker.ErrWorkerPanic {
 		// Master acceptance can precede loss of dispatch capacity or Stop. A
 		// pre-execution rejection has no Task phase and spends no Task attempt.
-		return q.deferDispatch(job.ID, result.Err)
+		return q.deferDispatch(job.ID, result.Err, cfg)
 	}
 	now := time.Now().UTC()
 	outcome := Outcome{
@@ -145,12 +190,20 @@ func (q *Queue) execute(ctx context.Context, master *worker.Master, build Builde
 	})
 }
 
-func (q *Queue) deferDispatch(id string, dispatchErr error) error {
+func (q *Queue) deferDispatch(id string, dispatchErr error, cfg runConfig) error {
+	retry := cfg.retryable(dispatchErr)
+	now := time.Now().UTC()
 	persistErr := q.changeJob(id, func(j *Job) {
 		j.State = Pending
 		j.Attempts--
-		j.UpdatedAt = time.Now().UTC()
+		j.UpdatedAt = now
+		if retry {
+			j.NextAttemptAt = now.Add(cfg.retryDelay)
+		}
 	})
+	if retry && persistErr == nil {
+		return errDispatchDeferred
+	}
 	return errors.Join(dispatchErr, persistErr)
 }
 

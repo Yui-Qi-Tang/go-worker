@@ -141,7 +141,8 @@ this version stores the latest outcome, not a full attempt history.
 The Task budget is separate from `worker.RecoveryPolicy`. Worker replacement
 restores pool capacity; the durable runner decides whether to rebuild a Task.
 If replacement capacity is exhausted, a job not yet executed stays pending
-without spending another Task attempt. Restore capacity and call Run again.
+without spending another Task attempt. Restore capacity and call Run again,
+or run with `WithDispatchRetry` to keep waiting.
 Recovery starts the next Task from Init; it cannot resume the middle of Run.
 
 Retries provide bounded repeated attempts, **not exactly-once external effects**.
@@ -161,6 +162,13 @@ positive Master queue capacity is required. Run does not create, start, stop, or
 replace Master/Workers. A dispatch/storage error stops new admissions, drains
 already accepted Tasks, and returns an error. Durable acceptance remains valid
 when Master cannot dispatch; jobs remain pending where execution was rejected.
+
+`WithDispatchRetry(delay)` keeps Run going when the Master's pool is empty or
+worker replacement was exhausted or failed. The rejected job stays pending with
+its attempt refunded and its next attempt delayed by `delay`. Restore capacity
+on the same Master with `AddWorkers` and `WakeAllWorkersUp`; Run resumes without
+a restart. A stopped Master, invalid configuration, and storage errors still end
+Run. Without the option, Run returns on those capacity errors as before.
 
 Canceling runnerCtx stops new admissions. The runner waits for accepted Tasks'
 actual results and saves them before returning; it never passes runnerCtx into
