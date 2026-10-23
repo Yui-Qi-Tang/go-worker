@@ -53,6 +53,20 @@ Different batch sizes also limit comparisons across workloads.
 No claim about production reliability, panic recovery, peak retained memory, or
 individual task latency follows from these measurements.
 
+## Protocol revision — 2026-10-23
+
+The 2026-10-23 record repeats the frozen protocol with these version changes only:
+
+- Go 1.27.3; pond v2.7.3. ants remains v2.12.1.
+- Production commit `cc9988890e32464a09486ddb84c7378411a165e4`, with zap v1.28.0
+  and uuid v1.6.0.
+
+These are the versions pinned by the current `go.mod` files. Differences from
+the 2026-10-04 record combine production changes, version changes, and host
+conditions; for example, Wait100us shifted for every engine, including the
+channel baseline. The [dispatch path record](results/2026-10-23-hotpath.md)
+measures each production change separately, all in one session.
+
 ## Run
 
 From this directory, install the pinned dependencies with `go mod tidy`, then:
@@ -71,8 +85,20 @@ go test -race -run '^$' -bench '^BenchmarkPool$' -benchtime=100x -cpu=8 -timeout
 
 Keep raw output and environment metadata in `results/` before interpreting
 median measurements. See each recorded run for its source hashes and host.
+Generate a record's summary from its raw runs, for example:
 
-## Recorded baseline
+```sh
+python3 summarize.py --date 2026-10-23 --go "Go 1.27.3" --commit cc99888 \
+  results/2026-10-23-Noop.txt results/2026-10-23-SHA2564KiB.txt results/2026-10-23-Wait100us.txt
+```
 
-See the [2026-10-04 measurements](results/2026-10-04-summary.md), including all
-five samples per case and the environment/source hashes.
+## Recorded baselines
+
+- [2026-10-04 measurements](results/2026-10-04-summary.md): frozen protocol,
+  Go 1.27.1, production commit `cb271c9`.
+- [2026-10-23 measurements](results/2026-10-23-summary.md): protocol revision
+  above, production commit `cc99888`.
+- [2026-10-23 dispatch path record](results/2026-10-23-hotpath.md): go-worker
+  only, one step per production change.
+
+Each record includes all five samples per case and the environment/source hashes.
