@@ -105,6 +105,13 @@ record does not mean external effects were rolled back. Outcome stores phase,
 error/cause text, panic text/stack, and an interruption flag; it does not retain
 live error values or arbitrary Task return values.
 
+Terminal records are kept until `Purge(ctx, cutoff, states...)` deletes those
+in the listed states (`succeeded`, `failed`, or `unknown`; at least one is
+required) last updated before `cutoff`. It returns the number deleted and may
+run while Run is active. A purged JobID is forgotten: enqueueing the same ID
+again creates a new job, so keep records at least as long as callers may retry
+an Enqueue.
+
 If Task execution finished but its completion commit failed, Run returns an
 error. Only a committed `succeeded` record establishes durable completion. A
 later Open/Run reconciles any remaining running records as interrupted. A failed
@@ -189,10 +196,15 @@ See the [bbolt documentation](https://pkg.go.dev/go.etcd.io/bbolt) for transacti
 and locking behavior. Do not replace or copy a live database file to create a
 second owner of the same logical work.
 
-This first version scans persisted records to find eligible work, retains
-terminal records, and makes no FIFO dispatch guarantee. It is intended for
-local queues with modest record counts; it has no queue compaction or retention
-API. Unknown schema/corrupt records fail opening rather than resetting work.
+Pending jobs are indexed by readiness, so claiming the next job does not scan
+terminal records. Run claims in readiness order: a job becomes ready when it
+turns pending, or at its `NextAttemptAt` when delayed; ties go by JobID. With
+concurrency above one, completion order can still differ. Open, the start of
+Run, Jobs, and Purge still read every record, so purge history that is no
+longer needed. Schema version 2 adds the index. Open migrates a version 1 file
+in place, after which earlier package versions reject the file with
+`ErrSchema`. Unknown schema/corrupt records fail opening rather than resetting
+work.
 
 Tests kill a child process without graceful cleanup after acceptance, during
 execution, after Task completion but before completion commit, and after a
