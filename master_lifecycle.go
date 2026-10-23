@@ -3,13 +3,19 @@ package worker
 import "context"
 
 // Stop rejects new work and signals workers to stop without waiting. Queued
-// tasks receive ErrMasterStopped; tasks already running are allowed to finish.
+// tasks receive ErrMasterStopped. The context of each running task is
+// canceled; the task still finishes with its own result.
 func (m *Master) Stop() {
 	if !m.isInitialized() {
 		return
 	}
 	m.beginShutdown()
 	m.stopNow()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, w := range m.pool {
+		w.Stop()
+	}
 }
 
 // Shutdown rejects new work, drains accepted submissions, and waits for workers
@@ -55,8 +61,10 @@ func (m *Master) stopNow() {
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		m.stopped = true
+		// Shutdown also arrives here once accepted work drains, so running
+		// direct calls are not canceled; Stop cancels them separately.
 		for _, w := range m.pool {
-			w.Stop()
+			w.stop()
 		}
 		m.stopWorkerRecovery()
 		close(m.quit)

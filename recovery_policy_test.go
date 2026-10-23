@@ -146,7 +146,7 @@ func TestRecoveryFailureRecordsCauseAndCompletesPendingWork(t *testing.T) {
 			m := newFeatureMaster(t, 1, WithWorkerRecovery(true), WithQueueCapacity(2), func(m *Master) { m.newRecoveryWorker = tc.build })
 			old := currentWorker(t, m)
 			gate := newGatedTask(t)
-			failed := submitTask(t, m, functionTask{run: func() error { _ = gate.Run(); panic("task failure") }})
+			failed := submitTask(t, m, functionTask{run: func() error { _ = gate.Run(context.Background()); panic("task failure") }})
 			awaitSignal(t, gate.entered)
 			ctx := &observedContext{Context: testContext(t), observed: make(chan struct{})}
 			waiting := make(chan error, 1)
@@ -214,7 +214,7 @@ func TestShutdownDrainsQueueWhenRecoveryBudgetExhausts(t *testing.T) {
 		t.Fatal(err)
 	}
 	gate := newGatedTask(t)
-	active := submitTask(t, m, functionTask{run: func() error { _ = gate.Run(); panic("second") }})
+	active := submitTask(t, m, functionTask{run: func() error { _ = gate.Run(context.Background()); panic("second") }})
 	awaitSignal(t, gate.entered)
 	queued := []*Future{submitTask(t, m, phaseErrorTask{}), submitTask(t, m, phaseErrorTask{})}
 	shutdown := make(chan error, 1)

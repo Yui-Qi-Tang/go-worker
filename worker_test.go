@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"log"
 	"testing"
@@ -26,7 +27,7 @@ func (tt testTask) ID() string {
 	return tt.String()
 }
 
-func (tt testTask) Init() error {
+func (tt testTask) Init(context.Context) error {
 	log.Println(tt, "init...")
 
 	return [...]error{
@@ -36,7 +37,7 @@ func (tt testTask) Init() error {
 	}[tt]
 }
 
-func (tt testTask) Run() error {
+func (tt testTask) Run(context.Context) error {
 	log.Println(tt, "run...")
 
 	return [...]error{
@@ -45,7 +46,7 @@ func (tt testTask) Run() error {
 	}[tt]
 }
 
-func (tt testTask) Done() error {
+func (tt testTask) Done(context.Context) error {
 	log.Println(tt, "done...")
 
 	return [...]error{

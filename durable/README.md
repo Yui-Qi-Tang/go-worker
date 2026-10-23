@@ -10,8 +10,9 @@ transaction boundaries, recovery rules, backend coupling, and open design decisi
 
 Only jobs are persisted. Master/Worker state, live Task objects, goroutines, and
 contexts remain in memory. Worker panic removal and replacement keep their
-existing behavior. Each Task remains responsible for its own work and has no
-new context method or parent-context binding.
+existing behavior. Each Task remains responsible for its own work. Builder and
+Task phases receive the Worker's context, which `Master.Stop` cancels; the
+runner's context is never passed to them.
 
 ## Acceptance and reconstruction
 
@@ -41,7 +42,7 @@ payload bytes, and immutable retry policy. It does not serialize `Task`. A
 caller-provided `Builder` handles kind/version validation and payload decoding:
 
 ```go
-build := func(job durable.Job) (worker.Task, error) {
+build := func(ctx context.Context, job durable.Job) (worker.Task, error) {
 	if job.Kind != "capture-payment" || job.Version != 1 {
 		return nil, fmt.Errorf("unsupported job: %s/%d", job.Kind, job.Version)
 	}
@@ -179,7 +180,7 @@ Run. Without the option, Run returns on those capacity errors as before.
 
 Canceling runnerCtx stops new admissions. The runner waits for accepted Tasks'
 actual results and saves them before returning; it never passes runnerCtx into
-the Task. The owner should:
+the Builder or Task. The owner should:
 
 1. Cancel the runner and wait for Run to return.
 2. Shut down the Master it owns.

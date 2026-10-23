@@ -26,17 +26,17 @@ func (w *Worker) executeTask(task Task, result *Result) {
 		ce.Write(zap.String("worker", w.name), zap.String("task_name", taskID))
 	}
 	result.Phase = PhaseInit
-	if err := task.Init(); err != nil {
+	if err := task.Init(w.ctx); err != nil {
 		w.taskFailure(task, result, ErrWorkerTaskInit, err, workerErrInit)
 		return
 	}
 	result.Phase = PhaseRun
-	if err := task.Run(); err != nil {
+	if err := task.Run(w.ctx); err != nil {
 		w.taskFailure(task, result, ErrWorkerTaskRun, err, workerErrRun)
 		return
 	}
 	result.Phase = PhaseDone
-	if err := task.Done(); err != nil {
+	if err := task.Done(w.ctx); err != nil {
 		w.taskFailure(task, result, ErrWorkerTaskDone, err, workerErrDone)
 		return
 	}

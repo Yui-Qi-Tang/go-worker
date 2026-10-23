@@ -22,19 +22,19 @@ type testTask struct {
 }
 
 func (*testTask) ID() string { return "application-task-ID" }
-func (t *testTask) Init() error {
+func (t *testTask) Init(context.Context) error {
 	if t.init != nil {
 		return t.init()
 	}
 	return nil
 }
-func (t *testTask) Run() error {
+func (t *testTask) Run(context.Context) error {
 	if t.run != nil {
 		return t.run()
 	}
 	return nil
 }
-func (t *testTask) Done() error {
+func (t *testTask) Done(context.Context) error {
 	if t.done != nil {
 		return t.done()
 	}
@@ -112,7 +112,7 @@ func TestMasterUnavailablePreservesDurableAcceptanceAndRefundsAttempt(t *testing
 	}
 	defer empty.Stop()
 	var builds atomic.Int64
-	build := func(job Job) (worker.Task, error) {
+	build := func(_ context.Context, job Job) (worker.Task, error) {
 		builds.Add(1)
 		if job.Kind != "test" || job.Version != 1 || string(job.Payload) != "payload" {
 			t.Errorf("builder input = %+v", job)
@@ -143,7 +143,7 @@ func TestRunnerCancellationDrainsAcceptedWorkAndGuardsOwnership(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	var releaseOnce sync.Once
-	build := func(Job) (worker.Task, error) {
+	build := func(context.Context, Job) (worker.Task, error) {
 		return &testTask{run: func() error { close(entered); <-release; return nil }}, nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -194,7 +194,7 @@ func TestConcurrentRunnerClaimsEachJobOnceAndRunsAllPhases(t *testing.T) {
 		}
 	}
 	var init, run, done atomic.Int64
-	build := func(job Job) (worker.Task, error) {
+	build := func(_ context.Context, job Job) (worker.Task, error) {
 		if job.Attempts != 1 {
 			t.Errorf("duplicate claim: %+v", job)
 		}
@@ -226,7 +226,7 @@ func TestSafeRetryHasIndependentBudgetAndBackoff(t *testing.T) {
 	}
 	var attempts atomic.Int64
 	var previous time.Time
-	build := func(job Job) (worker.Task, error) {
+	build := func(_ context.Context, job Job) (worker.Task, error) {
 		now := time.Now()
 		if !previous.IsZero() && now.Sub(previous) < input.Retry.Delay {
 			t.Errorf("retry preceded backoff: %v", now.Sub(previous))
@@ -253,7 +253,7 @@ func TestPanicAndGoexitRemainUnknownWithoutTaskRetryOptIn(t *testing.T) {
 				t.Fatal(err)
 			}
 			var builds atomic.Int64
-			startRunner(t, q, m, func(Job) (worker.Task, error) {
+			startRunner(t, q, m, func(context.Context, Job) (worker.Task, error) {
 				builds.Add(1)
 				if mode == "builder-panic" {
 					panic("reconstruction failed")
@@ -287,7 +287,7 @@ func TestCallerDiagnosticGoexitDoesNotAbandonProcessor(t *testing.T) {
 			if _, err := q.Enqueue(context.Background(), spec(mode)); err != nil {
 				t.Fatal(err)
 			}
-			startRunner(t, q, m, func(Job) (worker.Task, error) {
+			startRunner(t, q, m, func(context.Context, Job) (worker.Task, error) {
 				return &testTask{run: func() error {
 					if mode == "panic" {
 						panic(exitingDiagnostic{})
@@ -318,7 +318,7 @@ func TestReconstructionErrorsAndNilTaskArePersisted(t *testing.T) {
 			if _, err := q.Enqueue(context.Background(), spec(mode)); err != nil {
 				t.Fatal(err)
 			}
-			startRunner(t, q, m, func(Job) (worker.Task, error) {
+			startRunner(t, q, m, func(context.Context, Job) (worker.Task, error) {
 				switch mode {
 				case "error":
 					return nil, errors.New("unsupported payload version")
@@ -348,7 +348,7 @@ func TestSafePanicRetryRebuildsTasksAndPreservesBudgetWhenWorkerRecoveryExhausts
 		t.Fatal(err)
 	}
 	var tasks []*testTask
-	build := func(job Job) (worker.Task, error) {
+	build := func(_ context.Context, job Job) (worker.Task, error) {
 		task := &testTask{run: func() error {
 			if job.Attempts < 3 {
 				panic("retryable with application deduplication")
@@ -440,7 +440,7 @@ func TestCanceledMasterAdmissionRefundsTaskAttempt(t *testing.T) {
 	done := make(chan error, 1)
 	var builds atomic.Int64
 	go func() {
-		done <- q.Run(ctx, m, func(Job) (worker.Task, error) {
+		done <- q.Run(ctx, m, func(context.Context, Job) (worker.Task, error) {
 			builds.Add(1)
 			return &testTask{}, nil
 		}, 1)
@@ -470,7 +470,7 @@ func TestMasterStopAfterQueueAcceptancePreservesPendingJob(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	var builds atomic.Int64
-	build := func(Job) (worker.Task, error) {
+	build := func(context.Context, Job) (worker.Task, error) {
 		builds.Add(1)
 		return &testTask{}, nil
 	}
@@ -512,7 +512,7 @@ func TestCompletionPersistenceFailureIsReturnedAndReconciledOnReopen(t *testing.
 	t.Cleanup(func() { cancel(); releaseOnce.Do(func() { close(release) }) })
 	done := make(chan error, 1)
 	go func() {
-		done <- q.Run(ctx, m, func(Job) (worker.Task, error) {
+		done <- q.Run(ctx, m, func(context.Context, Job) (worker.Task, error) {
 			return &testTask{run: func() error { close(entered); <-release; return nil }}, nil
 		}, 1)
 	}()
@@ -565,7 +565,7 @@ func TestDispatchRetryWaitsForRepairedMaster(t *testing.T) {
 	}
 	defer m.Stop()
 	var builds atomic.Int64
-	build := func(Job) (worker.Task, error) {
+	build := func(context.Context, Job) (worker.Task, error) {
 		builds.Add(1)
 		return &testTask{}, nil
 	}
@@ -626,7 +626,7 @@ func TestDispatchRetryStillStopsOnStoppedMaster(t *testing.T) {
 	}
 	m := testMaster(t, 1)
 	m.Stop()
-	build := func(Job) (worker.Task, error) { return &testTask{}, nil }
+	build := func(context.Context, Job) (worker.Task, error) { return &testTask{}, nil }
 	if err := q.Run(context.Background(), m, build, 1, WithDispatchRetry(time.Millisecond)); !errors.Is(err, worker.ErrMasterStopped) {
 		t.Fatalf("Run = %v, want %v", err, worker.ErrMasterStopped)
 	}
@@ -638,10 +638,44 @@ func TestDispatchRetryStillStopsOnStoppedMaster(t *testing.T) {
 func TestDispatchRetryRejectsNonPositiveDelay(t *testing.T) {
 	q := openQueue(t)
 	m := testMaster(t, 1)
-	build := func(Job) (worker.Task, error) { return &testTask{}, nil }
+	build := func(context.Context, Job) (worker.Task, error) { return &testTask{}, nil }
 	for _, delay := range []time.Duration{0, -time.Second} {
 		if err := q.Run(context.Background(), m, build, 1, WithDispatchRetry(delay)); err != ErrInvalidRunner {
 			t.Fatalf("WithDispatchRetry(%v) = %v, want %v", delay, err, ErrInvalidRunner)
 		}
+	}
+}
+
+func TestRunnerCancellationDoesNotCancelTaskContext(t *testing.T) {
+	q := openQueue(t)
+	if _, err := q.Enqueue(context.Background(), spec("ctx")); err != nil {
+		t.Fatal(err)
+	}
+	m := testMaster(t, 1)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var taskCtx context.Context
+	build := func(ctx context.Context, _ Job) (worker.Task, error) {
+		taskCtx = ctx
+		return &testTask{run: func() error {
+			close(entered)
+			<-release
+			return nil
+		}}, nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- q.Run(ctx, m, build, 1) }()
+	<-entered
+	cancel()
+	// The builder ran before entered closed, so taskCtx is visible here.
+	if err := taskCtx.Err(); err != nil {
+		t.Fatalf("runner cancellation reached the task context: %v", err)
+	}
+	close(release)
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run = %v", err)
+	}
+	if job := waitJob(t, q, "ctx", Succeeded); job.Attempts != 1 {
+		t.Fatal(job)
 	}
 }

@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"testing"
 )
@@ -12,10 +13,10 @@ type phaseErrorTask struct {
 	doneErr error
 }
 
-func (t phaseErrorTask) Init() error { return t.initErr }
-func (t phaseErrorTask) Run() error  { return t.runErr }
-func (t phaseErrorTask) Done() error { return t.doneErr }
-func (t phaseErrorTask) ID() string  { return t.id }
+func (t phaseErrorTask) Init(context.Context) error { return t.initErr }
+func (t phaseErrorTask) Run(context.Context) error  { return t.runErr }
+func (t phaseErrorTask) Done(context.Context) error { return t.doneErr }
+func (t phaseErrorTask) ID() string                 { return t.id }
 
 func TestMasterDispatchReturnsTaskErrors(t *testing.T) {
 	ms, err := NewMaster()

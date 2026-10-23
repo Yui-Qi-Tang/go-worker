@@ -58,13 +58,13 @@ import (
 
 type printTask struct{ id string }
 
-func (t printTask) ID() string  { return t.id }
-func (t printTask) Init() error { return nil }
-func (t printTask) Run() error {
+func (t printTask) ID() string                 { return t.id }
+func (t printTask) Init(context.Context) error { return nil }
+func (t printTask) Run(context.Context) error {
 	fmt.Println(t.id)
 	return nil
 }
-func (t printTask) Done() error { return nil }
+func (t printTask) Done(context.Context) error { return nil }
 
 func run() error {
 	m, err := worker.NewMaster(
@@ -130,9 +130,9 @@ Implement `worker.Task` in your application:
 | Method | Purpose |
 | --- | --- |
 | `ID() string` | Return the task identity; it may be read more than once |
-| `Init() error` | Prepare the task |
-| `Run() error` | Execute the work |
-| `Done() error` | Complete the task after `Init` and `Run` succeed |
+| `Init(ctx) error` | Prepare the task |
+| `Run(ctx) error` | Execute the work |
+| `Done(ctx) error` | Complete the task after `Init` and `Run` succeed |
 
 Return `nil` from an unused phase. Execution follows `Init → Run → Done` and
 stops at the first error. `Done` is a success-path phase; put unconditional
@@ -142,6 +142,13 @@ A phase error leaves the worker available. A panic stops that worker. A task
 calling `runtime.Goexit()` also produces `ErrWorkerPanic` and stops the worker.
 Task methods are never forcibly interrupted by the pool. Any goroutines created
 by a task need their own lifecycle and panic handling.
+
+Each phase receives the executing worker's context. `Master.Stop` and
+`Worker.Stop` cancel it to ask running work to abort; `Shutdown` does not, so
+running work can finish. The worker also cancels it when it exits. It is **not**
+the context passed to `Submit`, `Schedule`, or `Do`, which only limits
+admission, so a caller's `defer cancel()` never cancels accepted work. A task
+that needs its own deadline can carry it in its fields.
 
 ## Submission and cancellation
 
@@ -211,12 +218,13 @@ value snapshot; referenced error and panic payloads remain caller-owned.
 
 | Method | `Master` | `Worker` |
 | --- | --- | --- |
-| `Stop()` | Reject new work and stop queued work; return immediately | Signal stop; return immediately |
-| `Shutdown(ctx)` | Reject new work, drain accepted work to terminal results, and wait for internal goroutines | Signal stop and wait for the active task and worker exit |
+| `Stop()` | Reject new work, stop queued work, and cancel running tasks' contexts; return immediately | Signal stop and cancel the running task's context; return immediately |
+| `Shutdown(ctx)` | Reject new work, drain accepted work to terminal results, and wait for internal goroutines | Signal stop and wait for the active task and worker exit, without canceling its context |
 | `Wait(ctx)` | Wait for shutdown completion without initiating it | Wait for exit without initiating it |
 
 `Stop` is idempotent. Queued tasks aborted by `Master.Stop` receive
-`ErrMasterStopped`; running tasks finish with their own result. Graceful shutdown
+`ErrMasterStopped`; running tasks see their context canceled and finish with
+their own result. Graceful shutdown
 also rejects synchronous callers that are still waiting for handoff.
 Only tasks that have begun execution are allowed to finish; a handed-off task
 that loses a race with `Stop` can still be rejected with `ErrMasterStopped`.
@@ -300,7 +308,8 @@ Task phases must finish all required work before returning success. Only a
 committed completion record marks a job succeeded. Panicked/interrupted work can
 have unknown external effects; automatic retries require explicit application
 idempotency or deduplication and a separate Task attempt budget. Worker replacement
-keeps its existing policy. Tasks gain no context binding.
+keeps its existing policy. Tasks receive their worker's context, not the
+runner's, so canceling `Queue.Run` never cancels accepted work.
 
 This first version supports one database owner and one runner, with bounded
 attempts rather than exactly-once effects. See the [durable contracts and usage](durable/README.md)

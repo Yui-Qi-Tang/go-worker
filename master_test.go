@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 )
@@ -15,16 +16,16 @@ func (a *atomicInt32) load() int32 {
 	return atomic.LoadInt32((*int32)(a))
 }
 
-func (a *atomicInt32) Init() error {
+func (a *atomicInt32) Init(context.Context) error {
 	return nil
 }
 
-func (a *atomicInt32) Run() error {
+func (a *atomicInt32) Run(context.Context) error {
 	a.addone()
 	return nil
 }
 
-func (a *atomicInt32) Done() error {
+func (a *atomicInt32) Done(context.Context) error {
 	return nil
 }
 

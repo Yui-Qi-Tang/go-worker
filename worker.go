@@ -70,6 +70,9 @@ type Worker struct {
 	ownerMetrics     *taskMetrics
 	done             chan struct{}
 	finishOnce       sync.Once
+	// ctx is passed to task phases; cancel aborts running work.
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// recovery carries this worker's recovery identity to its master after a panic.
 	recovery chan string
@@ -122,6 +125,7 @@ func NewWorker(opts ...Option) (*Worker, error) {
 		quit: make(chan any), task: make(chan *taskRequest),
 		done: make(chan struct{}),
 	}
+	w.ctx, w.cancel = context.WithCancel(context.Background())
 	for _, opt := range opts {
 		opt(w)
 	}
@@ -181,6 +185,7 @@ func (w *Worker) run() {
 	var owner *taskMetrics
 	active := false
 	defer w.finishOnce.Do(func() { close(w.done) })
+	defer w.cancel()
 	defer func() {
 		reason := recover()
 		// active also handles runtime.Goexit and legacy panic(nil), which would
@@ -255,11 +260,17 @@ func (w *Worker) finishTask(owner *taskMetrics, result Result) {
 	}
 }
 
-// Stop terminates worker. It is safe to call more than once.
+// Stop stops accepting tasks and cancels the context of a running task,
+// without waiting. It is safe to call more than once.
 func (w *Worker) Stop() {
+	if !w.isInitialized() {
+		return
+	}
 	w.stop()
+	w.cancel()
 }
 
+// stop stops accepting tasks and lets a running task finish.
 func (w *Worker) stop() {
 	if !w.isInitialized() {
 		return
@@ -272,6 +283,7 @@ func (w *Worker) stop() {
 		close(w.quit)
 		w.mu.Unlock()
 		if !started {
+			w.cancel()
 			w.finishOnce.Do(func() { close(w.done) })
 		}
 	})
@@ -334,7 +346,7 @@ func (w *Worker) isStarted() bool {
 }
 
 func (w *Worker) isInitialized() bool {
-	return w != nil && w.task != nil && w.quit != nil && w.logger != nil && w.done != nil
+	return w != nil && w.task != nil && w.quit != nil && w.logger != nil && w.done != nil && w.cancel != nil
 }
 
 func (w *Worker) readyError() error {
@@ -370,12 +382,13 @@ func (w *Worker) Wait(ctx context.Context) error {
 	return waitDone(ctx, w.done)
 }
 
-// Shutdown stops accepting tasks and waits for an active task to finish.
-// A deadline limits the wait; it cannot interrupt a Task method.
+// Shutdown stops accepting tasks and waits for an active task to finish
+// without canceling its context. A deadline limits the wait; call Stop to
+// cancel the running task.
 func (w *Worker) Shutdown(ctx context.Context) error {
 	if !w.isInitialized() {
 		return ErrWorkerNotInitialized
 	}
-	w.Stop()
+	w.stop()
 	return w.Wait(ctx)
 }

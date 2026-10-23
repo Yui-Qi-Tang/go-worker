@@ -19,7 +19,7 @@ type functionTask struct {
 	run func() error
 }
 
-func (t functionTask) Run() error { return t.run() }
+func (t functionTask) Run(context.Context) error { return t.run() }
 
 type gatedTask struct {
 	phaseErrorTask
@@ -35,8 +35,8 @@ func newGatedTask(t *testing.T) *gatedTask {
 	return task
 }
 
-func (t *gatedTask) Run() error { close(t.entered); <-t.release; return nil }
-func (t *gatedTask) unblock()   { t.once.Do(func() { close(t.release) }) }
+func (t *gatedTask) Run(context.Context) error { close(t.entered); <-t.release; return nil }
+func (t *gatedTask) unblock()                  { t.once.Do(func() { close(t.release) }) }
 
 func testContext(t *testing.T) context.Context {
 	t.Helper()
@@ -609,7 +609,9 @@ func TestWaitingTasksFinishWhenLastWorkerPanicsWithoutRecovery(t *testing.T) {
 	m := newFeatureMaster(t, 1, WithQueueCapacity(1))
 	gate := newGatedTask(t)
 	first := make(chan error, 1)
-	go func() { first <- m.Schedule(functionTask{run: func() error { _ = gate.Run(); panic("last worker") }}) }()
+	go func() {
+		first <- m.Schedule(functionTask{run: func() error { _ = gate.Run(context.Background()); panic("last worker") }})
+	}()
 	awaitSignal(t, gate.entered)
 	base, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -767,10 +769,10 @@ type countingTask struct {
 	count *int32
 }
 
-func (t countingTask) Init() error { return nil }
-func (t countingTask) Run() error {
+func (t countingTask) Init(context.Context) error { return nil }
+func (t countingTask) Run(context.Context) error {
 	atomic.AddInt32(t.count, 1)
 	return nil
 }
-func (t countingTask) Done() error { return nil }
-func (t countingTask) ID() string  { return "counting-task" }
+func (t countingTask) Done(context.Context) error { return nil }
+func (t countingTask) ID() string                 { return "counting-task" }

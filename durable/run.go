@@ -12,9 +12,10 @@ import (
 )
 
 // Builder reconstructs a fresh Task from the immutable specification and attempt
-// metadata. It runs in a Worker during Init, so the existing panic policy applies.
-// A Builder should only reconstruct the Task; business effects belong to its phases.
-type Builder func(Job) (worker.Task, error)
+// metadata. It runs in a Worker during Init with that phase's context, so the
+// existing panic policy applies. A Builder should only reconstruct the Task;
+// business effects belong to its phases.
+type Builder func(context.Context, Job) (worker.Task, error)
 
 // RunOption configures Run.
 type RunOption func(*runConfig)
@@ -52,8 +53,9 @@ var errDispatchDeferred = errors.New("durable dispatch deferred")
 // Master's lifecycle nor its Worker recovery policy. One Queue permits one Run.
 //
 // Cancellation stops new admission, then waits for accepted Tasks and commits
-// their outcomes before returning. It never binds Tasks to ctx or interrupts
-// their required work. A blocked Task can therefore delay Run's return.
+// their outcomes before returning. Tasks receive their Worker's context, not
+// ctx, so canceling Run never cancels required work; Master.Stop does. A
+// blocked Task can therefore delay Run's return.
 func (q *Queue) Run(ctx context.Context, master *worker.Master, build Builder, concurrency int, opts ...RunOption) error {
 	if q == nil || q.db == nil {
 		return ErrClosed
@@ -232,8 +234,8 @@ type rebuiltTask struct {
 
 func (t *rebuiltTask) ID() string { return t.job.ID }
 
-func (t *rebuiltTask) Init() error {
-	task, err := t.build(t.job)
+func (t *rebuiltTask) Init(ctx context.Context) error {
+	task, err := t.build(ctx, t.job)
 	if err != nil {
 		return err
 	}
@@ -248,8 +250,8 @@ func (t *rebuiltTask) Init() error {
 		}
 	}
 	t.task = task
-	return task.Init()
+	return task.Init(ctx)
 }
 
-func (t *rebuiltTask) Run() error  { return t.task.Run() }
-func (t *rebuiltTask) Done() error { return t.task.Done() }
+func (t *rebuiltTask) Run(ctx context.Context) error  { return t.task.Run(ctx) }
+func (t *rebuiltTask) Done(ctx context.Context) error { return t.task.Done(ctx) }

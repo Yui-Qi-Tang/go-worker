@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,21 +13,21 @@ type recoveryTask struct {
 	runs        *int32
 }
 
-func (t recoveryTask) Init() error {
+func (t recoveryTask) Init(context.Context) error {
 	if t.panicInInit {
 		panic("recover me")
 	}
 	return nil
 }
 
-func (t recoveryTask) Run() error {
+func (t recoveryTask) Run(context.Context) error {
 	if t.runs != nil {
 		atomic.AddInt32(t.runs, 1)
 	}
 	return nil
 }
 
-func (t recoveryTask) Done() error {
+func (t recoveryTask) Done(context.Context) error {
 	return nil
 }
 

@@ -59,7 +59,7 @@ func TestCrashHelper(t *testing.T) {
 		t.Fatal(err)
 	}
 	phasesFinished := make(chan struct{})
-	build := func(job Job) (worker.Task, error) {
+	build := func(_ context.Context, job Job) (worker.Task, error) {
 		return &testTask{
 			run: func() error {
 				if mode == "retry-scheduled" {
@@ -206,7 +206,7 @@ func TestProcessCrashAfterAcceptanceBeforeDispatch(t *testing.T) {
 		t.Fatalf("accepted job = %+v, %v", job, err)
 	}
 	m := testMaster(t, 1)
-	startRunner(t, q, m, func(job Job) (worker.Task, error) {
+	startRunner(t, q, m, func(_ context.Context, job Job) (worker.Task, error) {
 		return &testTask{run: func() error { return deduplicatedEffect(job) }}, nil
 	}, 1)
 	finished := waitJob(t, q, job.ID, Succeeded)
@@ -240,7 +240,7 @@ func TestProcessCrashDuringTaskUsesSafetyDeclarationAndAttemptBudget(t *testing.
 			}
 			m := testMaster(t, 1)
 			var builds atomic.Int64
-			startRunner(t, q, m, func(job Job) (worker.Task, error) {
+			startRunner(t, q, m, func(_ context.Context, job Job) (worker.Task, error) {
 				if job.ID == "crash-job" {
 					builds.Add(1)
 				}
@@ -290,7 +290,7 @@ func TestProcessCrashAfterTaskCompletionBeforeDurableCompletionAllowsDeduplicati
 	}
 	m := testMaster(t, 1)
 	var builds atomic.Int64
-	startRunner(t, q, m, func(job Job) (worker.Task, error) {
+	startRunner(t, q, m, func(_ context.Context, job Job) (worker.Task, error) {
 		builds.Add(1)
 		return &testTask{run: func() error { return deduplicatedEffect(job) }}, nil
 	}, 1)

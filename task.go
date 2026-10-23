@@ -1,16 +1,27 @@
 package worker
 
-import "reflect"
+import (
+	"context"
+	"reflect"
+)
 
-// Task is a general interface for worker
+// Task is the unit of work a Worker executes as Init, Run, then Done,
+// stopping at the first error.
+//
+// Each phase receives the executing worker's context. It is canceled when
+// Worker.Stop or Master.Stop aborts work, and when the worker exits; Shutdown
+// lets running work finish without canceling it. It is not derived from the
+// context passed to Submit, Schedule, or Do, which only limits admission.
+// The pool never interrupts a phase; honoring ctx is up to the Task.
 type Task interface {
-	// Init is init phase if there are no steps for initial, just return nil
-	Init() error
-	// Run is your work behavior
-	Run() error
-	// Done is denoted complete status of work, if there are no steps for this phase, just return nil
-	Done() error
-	// ID returns the identity of your job
+	// Init prepares the task. Return nil if there is nothing to prepare.
+	Init(ctx context.Context) error
+	// Run performs the work.
+	Run(ctx context.Context) error
+	// Done completes the task after Init and Run succeed. Return nil if
+	// there is nothing to complete.
+	Done(ctx context.Context) error
+	// ID returns the task identity; it may be called more than once.
 	ID() string
 }
 
