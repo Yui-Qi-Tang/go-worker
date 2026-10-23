@@ -43,4 +43,4 @@ jobs:
 
       - name: Check benchmark harness with race detector
         working-directory: benchmarks
-        run: go test -race -run '^$' -bench '^BenchmarkPool$' -benchtime=100x -cpu=8 -timeout=2m
+        run: go test -race -run '^$' -bench '^Benchmark(Pool|ConcurrentSubmit|Latency)$' -benchtime=100x -cpu=8 -timeout=5m

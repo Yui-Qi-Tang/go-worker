@@ -29,6 +29,20 @@ records metrics, and returns futures, while the channel baseline does none of
 these. The figures compare those native configurations, not equivalent
 implementations.
 
+## Load scenarios
+
+Two more benchmarks cover what `BenchmarkPool` does not:
+
+| Benchmark | Measures |
+| --- | --- |
+| `BenchmarkConcurrentSubmit` | `BenchmarkPool` with 8 goroutines submitting at once; Noop and SHA2564KiB, 1 or 8 workers |
+| `BenchmarkLatency` | A pool that stays up, 8 workers, 1 or 32 callers each submitting one Noop task and waiting for it in a loop; reports p50, p99, and p99.9 round-trip latency |
+
+In `BenchmarkLatency` each engine uses its own submit-and-wait path: go-worker
+`Schedule`, ants `Submit` with a done channel, pond `Submit(...).Wait()`, and
+the channel baseline a done channel. Its ns/op is the inverse of closed-loop
+throughput, not latency.
+
 ## Run
 
 From this directory:
@@ -39,10 +53,21 @@ go test -run '^$' -bench '^BenchmarkPool/SHA2564KiB/' -benchmem -benchtime=10000
 go test -run '^$' -bench '^BenchmarkPool/Wait100us/' -benchmem -benchtime=1000x -count=5 -cpu=8 -timeout=10m
 ```
 
+The load scenarios use fixed counts too:
+
+```sh
+go test -run '^$' -bench '^BenchmarkConcurrentSubmit/Noop/' -benchmem -benchtime=100000x -count=5 -cpu=8 -timeout=10m
+go test -run '^$' -bench '^BenchmarkConcurrentSubmit/SHA2564KiB/' -benchmem -benchtime=10000x -count=5 -cpu=8 -timeout=10m
+go test -run '^$' -bench '^BenchmarkLatency/' -benchmem -benchtime=100000x -count=5 -cpu=8 -timeout=10m
+```
+
+`-count` runs each case's samples back to back. To interleave engines, repeat
+`-count=1` instead.
+
 Check the harness itself under the race detector:
 
 ```sh
-go test -race -run '^$' -bench '^BenchmarkPool$' -benchtime=100x -cpu=8 -timeout=2m
+go test -race -run '^$' -bench '^Benchmark(Pool|ConcurrentSubmit|Latency)$' -benchtime=100x -cpu=8 -timeout=5m
 ```
 
 Summarize a record's raw runs:
@@ -67,3 +92,5 @@ source hashes and host details.
   develop against each step and against an autoscaling pool.
 - [2026-10-24 actor workers](results/2026-10-24-actor.md): ablation of the shared
   channel, CPU profiles, and all engines at `d810da1`; recorded on a loaded host.
+- [2026-10-24 load scenarios](results/2026-10-24-load.md): concurrent submitters,
+  round-trip latency, and a tail-latency ablation; recorded on a loaded host.
