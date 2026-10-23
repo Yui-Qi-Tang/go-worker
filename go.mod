@@ -1,4 +1,4 @@
-module yuki-tang.github.com
+module github.com/Yui-Qi-Tang/go-worker
 
 go 1.27.3
 

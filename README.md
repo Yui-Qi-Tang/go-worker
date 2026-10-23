@@ -24,23 +24,20 @@ supports up to 256 registered workers.
 
 ## Requirements and import
 
-Requires **Go 1.27.3 or newer**, as declared in `go.mod`. The package name is
-`worker`; the module currently uses the legacy path `yuki-tang.github.com`.
-Import it as `worker "yuki-tang.github.com"`.
-
-To use this checkout from another local module, point a `replace` directive at
-it. For example, with a demo directory beside `go-worker`:
+Requires **Go 1.27.3 or newer**, as declared in `go.mod`. The module path is
+`github.com/Yui-Qi-Tang/go-worker` and the package name is `worker`, so import it
+as `worker "github.com/Yui-Qi-Tang/go-worker"`. For example, in a new module:
 
 ```sh
 mkdir worker-demo
 cd worker-demo
 go mod init example.com/worker-demo
-go mod edit -require=yuki-tang.github.com@v0.0.0
-go mod edit -replace=yuki-tang.github.com=../go-worker
+go get github.com/Yui-Qi-Tang/go-worker@v1.0.0
 ```
 
-Here `v0.0.0` is a local dependency placeholder, not a published release version.
 Save the following program as `main.go`, then run `go mod tidy` and `go run .`.
+Unreleased checkouts before v1.0.0 used the module path `yuki-tang.github.com`;
+replace that path in imports and `replace` directives.
 
 ## Quick start
 
@@ -56,7 +53,7 @@ import (
 	"log"
 	"time"
 
-	worker "yuki-tang.github.com"
+	worker "github.com/Yui-Qi-Tang/go-worker"
 )
 
 type printTask struct{ id string }

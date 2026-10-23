@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/Yui-Qi-Tang/go-worker"
 	"go.uber.org/zap"
-	worker "yuki-tang.github.com"
 )
 
 type testTask struct {

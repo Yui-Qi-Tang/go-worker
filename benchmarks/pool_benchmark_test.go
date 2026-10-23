@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/Yui-Qi-Tang/go-worker"
 	"github.com/alitto/pond/v2"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/zap"
-	worker "yuki-tang.github.com"
 )
 
 const queueCapacity = 64

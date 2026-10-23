@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
+	worker "github.com/Yui-Qi-Tang/go-worker"
+	"github.com/Yui-Qi-Tang/go-worker/durable"
 	"go.uber.org/zap"
-	worker "yuki-tang.github.com"
-	"yuki-tang.github.com/durable"
 )
 
 // writeTask completes and syncs the required file write before returning. Writing

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	worker "yuki-tang.github.com"
+	worker "github.com/Yui-Qi-Tang/go-worker"
 )
 
 // State describes a persisted job, rather than a Worker's health.

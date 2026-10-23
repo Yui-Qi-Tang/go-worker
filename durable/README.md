@@ -2,8 +2,8 @@
 
 The `durable` package stores reconstructible jobs in a local **bbolt v1.5.0**
 database and dispatches them through the existing `worker.Master`. It requires
-**Go 1.27.3 or newer**. Import `"yuki-tang.github.com/durable"` alongside
-`worker "yuki-tang.github.com"`.
+**Go 1.27.3 or newer**. Import `"github.com/Yui-Qi-Tang/go-worker/durable"`
+alongside `worker "github.com/Yui-Qi-Tang/go-worker"`.
 
 See the [storage architecture review](../docs/durable-storage-design.md) for the
 transaction boundaries, recovery rules, backend coupling, and open design decisions.

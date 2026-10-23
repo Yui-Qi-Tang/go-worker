@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/Yui-Qi-Tang/go-worker"
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
-	worker "yuki-tang.github.com"
 )
 
 // TestCrashHelper is executed in a subprocess and deliberately killed without

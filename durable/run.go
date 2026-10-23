@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	worker "yuki-tang.github.com"
+	worker "github.com/Yui-Qi-Tang/go-worker"
 )
 
 // Builder reconstructs a fresh Task from the immutable specification and attempt
