@@ -46,13 +46,14 @@ type Master struct {
 	direct chan *taskRequest
 	queue  chan *taskRequest
 
-	// Producers hold admit's read lock while checking acceptCtx and sending;
+	// Producers hold admit's read lock while checking acceptDone and sending;
 	// shutdown takes the write lock before it closes the queue.
-	admit        sync.RWMutex
-	acceptCtx    context.Context
-	acceptCancel context.CancelFunc
-	abortCtx     context.Context
-	abortCancel  context.CancelFunc
+	admit sync.RWMutex
+	// acceptDone is closed when the master stops accepting work; aborted is
+	// set when Stop abandons queued work. Workers read both to decide what
+	// to do with each task.
+	acceptDone chan struct{}
+	aborted    atomic.Bool
 
 	// poolDown holds the error returned while no worker can run.
 	poolDown atomic.Pointer[poolFailure]
@@ -64,7 +65,6 @@ type Master struct {
 	mu           sync.Mutex
 	workers      map[*Worker]struct{}
 	closing      bool
-	aborting     bool
 	queueDrained bool
 	// lost counts panicked workers not yet replaced. While it is positive,
 	// every new worker is a replacement and spends the restart budget.
@@ -116,6 +116,7 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 		recoveryPolicy: RecoveryPolicy{MaxRestarts: 5, Window: time.Minute},
 		newWorker:      newPoolWorker,
 		direct:         make(chan *taskRequest),
+		acceptDone:     make(chan struct{}),
 		workers:        make(map[*Worker]struct{}),
 		done:           make(chan struct{}),
 	}
@@ -147,8 +148,6 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 	if m.queueCapacity > 0 {
 		m.queue = make(chan *taskRequest, m.queueCapacity)
 	}
-	m.acceptCtx, m.acceptCancel = context.WithCancel(context.Background())
-	m.abortCtx, m.abortCancel = context.WithCancel(context.Background())
 
 	m.mu.Lock()
 	var err error
@@ -216,15 +215,17 @@ func (m *Master) handoff(ctx context.Context, request *taskRequest) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-m.acceptCtx.Done():
+	case <-m.acceptDone:
 		return ErrMasterStopped
 	}
 }
 
 // admissionError must be called with admit's read lock held.
 func (m *Master) admissionError() error {
-	if m.acceptCtx.Err() != nil {
+	select {
+	case <-m.acceptDone:
 		return ErrMasterStopped
+	default:
 	}
 	if failure := m.poolDown.Load(); failure != nil {
 		return failure.err
@@ -236,5 +237,5 @@ func (m *Master) admissionError() error {
 func (m *Master) scales() bool { return m.minWorkers < m.maxWorkers }
 
 func (m *Master) isInitialized() bool {
-	return m != nil && m.done != nil && m.direct != nil && m.acceptCtx != nil
+	return m != nil && m.done != nil && m.direct != nil && m.acceptDone != nil
 }

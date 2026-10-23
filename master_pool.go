@@ -79,7 +79,7 @@ func (m *Master) workerExited(w *Worker, panicked bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.removeLocked(w)
-	if panicked && !m.aborting {
+	if panicked && !m.aborted.Load() {
 		m.lost++
 		m.restoreLocked(w.name)
 	}

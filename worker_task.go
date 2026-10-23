@@ -17,7 +17,7 @@ func newTaskRequest(task Task) *taskRequest {
 	return &taskRequest{Task: task, result: make(chan Result, 1)}
 }
 
-func (w *Worker) executeTask(task Task, result *Result) {
+func (w *Worker) executeTask(ctx context.Context, task Task, result *Result) {
 	// ID is read even when logging is disabled; Result.TaskID depends on it.
 	// Check avoids building log fields for a disabled level on every task.
 	taskID := readTaskID(task, result)
@@ -25,17 +25,17 @@ func (w *Worker) executeTask(task Task, result *Result) {
 		ce.Write(zap.String("worker", w.name), zap.String("task_name", taskID))
 	}
 	result.Phase = PhaseInit
-	if err := task.Init(w.ctx); err != nil {
+	if err := task.Init(ctx); err != nil {
 		w.taskFailure(task, result, ErrWorkerTaskInit, err, workerErrInit)
 		return
 	}
 	result.Phase = PhaseRun
-	if err := task.Run(w.ctx); err != nil {
+	if err := task.Run(ctx); err != nil {
 		w.taskFailure(task, result, ErrWorkerTaskRun, err, workerErrRun)
 		return
 	}
 	result.Phase = PhaseDone
-	if err := task.Done(w.ctx); err != nil {
+	if err := task.Done(ctx); err != nil {
 		w.taskFailure(task, result, ErrWorkerTaskDone, err, workerErrDone)
 		return
 	}

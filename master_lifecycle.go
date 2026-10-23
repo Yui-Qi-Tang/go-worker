@@ -34,18 +34,26 @@ func (m *Master) Wait(ctx context.Context) error {
 }
 
 // beginShutdown moves the pool to draining, or to aborting when abort is set.
-// Workers observe the change through acceptCtx and abortCtx.
+// Workers observe the change through acceptDone and aborted.
 func (m *Master) beginShutdown(abort bool) {
 	m.mu.Lock()
 	first := !m.closing
 	m.closing = true
-	startAbort := abort && !m.aborting
-	if abort {
-		m.aborting = true
+	if first {
+		close(m.acceptDone)
 	}
+	startAbort := abort && !m.aborted.Load()
 	if m.healTimer != nil {
 		m.healTimer.Stop()
 		m.healTimer = nil
+	}
+	if startAbort {
+		// Set before canceling, so a worker that sees its task canceled also
+		// sees the abort when it takes the next task.
+		m.aborted.Store(true)
+		for w := range m.workers {
+			w.cancelTask()
+		}
 	}
 	if startAbort && m.queue != nil && !m.queueDrained {
 		// Answer queued tasks now rather than when a busy worker frees up.
@@ -60,17 +68,13 @@ func (m *Master) beginShutdown(abort bool) {
 	}
 	m.mu.Unlock()
 
-	m.acceptCancel()
-	if abort {
-		m.abortCancel()
-	}
 	if first {
 		go m.finishShutdown()
 	}
 }
 
 func (m *Master) finishShutdown() {
-	// Producers check acceptCtx under admit's read lock, so once the write
+	// Producers check acceptDone under admit's read lock, so once the write
 	// lock is held no send can follow and the queue can be closed.
 	m.admit.Lock()
 	if m.queue != nil {
@@ -101,6 +105,5 @@ func (m *Master) finishShutdown() {
 	if m.ownsLogger {
 		_ = m.logger.Sync()
 	}
-	m.abortCancel()
 	close(m.done)
 }

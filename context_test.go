@@ -10,21 +10,24 @@ import (
 )
 
 // ctxTask reports the context its Run phase received and blocks until it is
-// released or that context is canceled.
+// released or that context is canceled. ctxDone closes once that context is
+// done, even after Run returns.
 type ctxTask struct {
 	entered chan struct{}
 	release chan struct{}
 	seen    chan error
+	ctxDone chan struct{}
 }
 
 func newCtxTask() *ctxTask {
-	return &ctxTask{entered: make(chan struct{}), release: make(chan struct{}), seen: make(chan error, 1)}
+	return &ctxTask{entered: make(chan struct{}), release: make(chan struct{}), seen: make(chan error, 1), ctxDone: make(chan struct{})}
 }
 
 func (t *ctxTask) ID() string                 { return "ctx-task" }
 func (t *ctxTask) Init(context.Context) error { return nil }
 func (t *ctxTask) Done(context.Context) error { return nil }
 func (t *ctxTask) Run(ctx context.Context) error {
+	go func() { <-ctx.Done(); close(t.ctxDone) }()
 	close(t.entered)
 	select {
 	case <-t.release:
@@ -98,9 +101,8 @@ func TestWorkerShutdownLetsRunningTaskFinish(t *testing.T) {
 	if err := <-shutdown; err != nil {
 		t.Fatal(err)
 	}
-	if w.ctx.Err() == nil {
-		t.Fatal("worker context still active after exit")
-	}
+	// The worker cancels the task context when it exits.
+	awaitSignal(t, task.ctxDone)
 }
 
 func TestMasterStopCancelsRunningTaskButShutdownDoesNot(t *testing.T) {

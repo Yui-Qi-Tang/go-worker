@@ -71,9 +71,10 @@ type Worker struct {
 	ownerMetrics     *taskMetrics
 	done             chan struct{}
 	finishOnce       sync.Once
-	// ctx is passed to task phases; cancel aborts running work.
-	ctx    context.Context
-	cancel context.CancelFunc
+	// cancel cancels the context the worker goroutine passes to task phases;
+	// canceled records a cancel requested before the goroutine set it.
+	cancel   context.CancelFunc
+	canceled bool
 
 	quit chan any
 
@@ -109,7 +110,6 @@ func NewWorker(opts ...Option) (*Worker, error) {
 		quit: make(chan any), task: make(chan *taskRequest),
 		done: make(chan struct{}),
 	}
-	w.ctx, w.cancel = context.WithCancel(context.Background())
 	for _, opt := range opts {
 		opt(w)
 	}
@@ -129,8 +129,8 @@ func NewWorker(opts ...Option) (*Worker, error) {
 	return w, nil
 }
 
-// newPoolWorker creates a worker that serves m's queues. Its context is a
-// child of m.abortCtx, so Master.Stop cancels every running task.
+// newPoolWorker creates a worker that serves m's queues. Master.Stop cancels
+// its task context through cancelTask.
 func newPoolWorker(m *Master) (*Worker, error) {
 	w := &Worker{
 		name: guuid.New().String(), owner: m,
@@ -139,7 +139,6 @@ func newPoolWorker(m *Master) (*Worker, error) {
 		// The master owns the shared logger and its Sync.
 		logger: m.logger, loggerConfigured: true,
 	}
-	w.ctx, w.cancel = context.WithCancel(m.abortCtx)
 	return w, nil
 }
 
@@ -183,14 +182,24 @@ type runState struct {
 }
 
 func (w *Worker) run() {
+	// The task context lives on this goroutine and is passed down; the
+	// worker keeps only its cancel function for Stop.
+	ctx, cancel := context.WithCancel(context.Background())
+	w.mu.Lock()
+	w.cancel = cancel
+	if w.canceled {
+		cancel()
+	}
+	w.mu.Unlock()
+
 	var st runState
 	defer w.finishOnce.Do(func() { close(w.done) })
-	defer w.cancel()
+	defer cancel()
 	defer w.recoverRun(&st)
 
 	w.logger.Info(workerEventStart, zap.String("worker", w.name))
 	if w.owner != nil {
-		w.servePool(&st)
+		w.servePool(ctx, &st)
 		return
 	}
 	for {
@@ -206,7 +215,7 @@ func (w *Worker) run() {
 				w.reportTaskResult(request, Result{Err: ErrWorkerStopped})
 				return
 			}
-			w.execute(&st, request)
+			w.execute(ctx, &st, request)
 		}
 	}
 }
@@ -215,7 +224,7 @@ func (w *Worker) run() {
 // request from the master's state: it runs tasks while the master accepts
 // work, keeps running queued tasks while the master drains, and answers them
 // with ErrMasterStopped once the master aborts.
-func (w *Worker) servePool(st *runState) {
+func (w *Worker) servePool(ctx context.Context, st *runState) {
 	m := w.owner
 	// Only a scaling pool tracks idle workers and retires them.
 	var idle *time.Timer
@@ -241,7 +250,7 @@ func (w *Worker) servePool(st *runState) {
 				return
 			}
 			request = r
-		case <-m.acceptCtx.Done():
+		case <-m.acceptDone:
 			setIdle(-1)
 			// Draining: nothing new arrives on direct, and the queue is
 			// closed once every producer has finished.
@@ -249,7 +258,7 @@ func (w *Worker) servePool(st *runState) {
 				return
 			}
 			for request := range m.queue {
-				w.serve(st, request)
+				w.serve(ctx, st, request)
 			}
 			return
 		case <-idleC:
@@ -265,22 +274,22 @@ func (w *Worker) servePool(st *runState) {
 			// A backlog remains: add a worker even if no new task arrives.
 			_ = m.grow(len(m.queue))
 		}
-		w.serve(st, request)
+		w.serve(ctx, st, request)
 		if idle != nil {
 			idle.Reset(m.idleTimeout)
 		}
 	}
 }
 
-func (w *Worker) serve(st *runState, request *taskRequest) {
-	if w.owner.abortCtx.Err() != nil {
+func (w *Worker) serve(ctx context.Context, st *runState, request *taskRequest) {
+	if w.owner.aborted.Load() {
 		request.reply(Result{Err: ErrMasterStopped})
 		return
 	}
-	w.execute(st, request)
+	w.execute(ctx, st, request)
 }
 
-func (w *Worker) execute(st *runState, request *taskRequest) {
+func (w *Worker) execute(ctx context.Context, st *runState, request *taskRequest) {
 	w.mu.Lock()
 	st.owner = w.ownerMetrics
 	w.mu.Unlock()
@@ -289,7 +298,7 @@ func (w *Worker) execute(st *runState, request *taskRequest) {
 		st.owner.begin()
 	}
 	st.request, st.active, st.result = request, true, Result{}
-	w.executeTask(request.Task, &st.result)
+	w.executeTask(ctx, request.Task, &st.result)
 	w.finishTask(st.owner, st.result)
 	st.active = false
 	w.reportTaskResult(request, st.result)
@@ -353,7 +362,19 @@ func (w *Worker) Stop() {
 		return
 	}
 	w.stop()
-	w.cancel()
+	w.cancelTask()
+}
+
+// cancelTask cancels the context of the running task, or of the next one
+// if the worker goroutine has not set its context up yet.
+func (w *Worker) cancelTask() {
+	w.mu.Lock()
+	w.canceled = true
+	cancel := w.cancel
+	w.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 // stop stops accepting tasks and lets a running task finish.
@@ -369,7 +390,6 @@ func (w *Worker) stop() {
 		close(w.quit)
 		w.mu.Unlock()
 		if !started {
-			w.cancel()
 			w.finishOnce.Do(func() { close(w.done) })
 		}
 	})
@@ -390,7 +410,7 @@ func (w *Worker) isStopped() bool {
 }
 
 func (w *Worker) isInitialized() bool {
-	return w != nil && w.task != nil && w.quit != nil && w.logger != nil && w.done != nil && w.cancel != nil
+	return w != nil && w.task != nil && w.quit != nil && w.logger != nil && w.done != nil
 }
 
 func (w *Worker) readyError() error {

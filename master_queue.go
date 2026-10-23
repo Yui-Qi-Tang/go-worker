@@ -69,7 +69,7 @@ func (m *Master) submit(ctx context.Context, task Task, block bool) (*Future, er
 		return request.future, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-m.acceptCtx.Done():
+	case <-m.acceptDone:
 		return nil, ErrMasterStopped
 	}
 }
