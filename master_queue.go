@@ -62,7 +62,7 @@ func (m *Master) submit(ctx context.Context, task Task, block bool) (*Future, er
 			m.Unlock()
 			return future, nil
 		}
-		changed := m.queueChanged
+		changed := m.watchQueueLocked()
 		m.Unlock()
 		if !block {
 			return nil, ErrQueueFull
@@ -77,16 +77,28 @@ func (m *Master) submit(ctx context.Context, task Task, block bool) (*Future, er
 	}
 }
 
+// watchQueueLocked returns a channel closed by the next queue change. Only a
+// watched channel is replaced on change, so an unobserved change allocates
+// nothing.
+func (m *Master) watchQueueLocked() <-chan struct{} {
+	m.queueWatched = true
+	return m.queueChanged
+}
+
 func (m *Master) signalQueueChangedLocked() {
+	if !m.queueWatched {
+		return
+	}
 	close(m.queueChanged)
 	m.queueChanged = make(chan struct{})
+	m.queueWatched = false
 }
 
 func (m *Master) runQueue() {
 	for {
 		m.Lock()
 		if len(m.pending) == 0 {
-			stopped, changed := m.stopped, m.queueChanged
+			stopped, changed := m.stopped, m.watchQueueLocked()
 			m.Unlock()
 			if stopped {
 				return

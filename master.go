@@ -36,6 +36,7 @@ type Master struct {
 	queueCapacity     int
 	pending           []*taskRequest
 	queueChanged      chan struct{}
+	queueWatched      bool
 	poolChanged       chan struct{}
 	poolErr           error
 	recoveryPolicy    RecoveryPolicy
