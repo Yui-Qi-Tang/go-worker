@@ -4,6 +4,9 @@
 實作基線：`0ab805e88a497bb4781f0d28c39bf34618ef39bc`。
 版本：Go **1.27.1**、bbolt **v1.5.0**。
 
+修訂：2026-10-23。補上 schema v2 的 ready index、v1 遷移、`Purge` 與 `WithDispatchRetry`。
+修訂基線：`0941ed514286488d3a65bc214281e3380e7d41bd`；版本：Go **1.27.3**、bbolt **v1.5.0**。
+
 這份文件說明 task durable 的責任邊界、資料模型、交易、失敗與恢復語意。
 目前採用本機 bbolt 後端；尚未實作的儲存替換方向另列於最後，供討論。
 本文不變更既有 failed/panic Worker 移除與替換策略。
@@ -47,8 +50,8 @@ Runner 是 `Queue.Run` 的職責，沒有另一個公開 Runner 型別。
 | 元件 | 責任 | 擁有者 |
 | --- | --- | --- |
 | 使用方 | 定義 payload、版本處理、Task 完成條件、業務冪等與去重 | 應用程式 |
-| `durable.Queue` | 持久化接納、快照查詢、原子領取、完成與重試狀態、開啟時恢復 | 呼叫 `Open` 的使用方 |
-| `Queue.Run` | 有界派送、等待實際結果、保存結果、協調取消 | 使用方啟動與等待 |
+| `durable.Queue` | 持久化接納、快照查詢、原子領取、完成與重試狀態、開啟時恢復與 schema 遷移、ready index 維護、終局紀錄清除 | 呼叫 `Open` 的使用方 |
+| `Queue.Run` | 有界派送、等待實際結果、保存結果、協調取消；可選擇在容量暫失時延後重試 | 使用方啟動與等待 |
 | `Builder` | 從 Job 重建一個新的 Task；解讀 Kind、Version、Payload | 使用方 |
 | `worker.Master` | 記憶體佇列、Worker 排程、容量與生命週期 | 使用方 |
 | `worker.Worker` | 執行 Task phases，回報 phase error/panic/Goexit | Master 或獨立 Worker 的使用方 |
@@ -65,8 +68,8 @@ Queue.Run 不會自行建立、關閉 Master，或修改 Worker recovery policy�
 | 檔案 | 職責 |
 | --- | --- |
 | [job.go](../durable/job.go) | Spec、Job、Outcome、RetryPolicy、狀態與失敗重試規則 |
-| [queue.go](../durable/queue.go) | bbolt 開啟、schema、接納、查詢、claim、更新與恢復 |
-| [run.go](../durable/run.go) | Runner、Master Submit/Future 整合、Task 重建與結果保存 |
+| [queue.go](../durable/queue.go) | bbolt 開啟、schema 與遷移、ready index、接納、查詢、claim、更新、恢復與 Purge |
+| [run.go](../durable/run.go) | Runner、RunOption、Master Submit/Future 整合、Task 重建與結果保存 |
 | [worker_task.go](../worker_task.go) | 原有 Task phases 與 Result 分類 |
 | [master_queue.go](../master_queue.go) | 原有記憶體佇列與 Future 接納 |
 
@@ -125,12 +128,19 @@ Outcome 只保留診斷文字，不保存原本的 error 型別、panic 物件�
 
 ### 實體格式與版本
 
-資料檔案包含兩個 bucket：
+schema 版本 2 的資料檔案包含三個 bucket：
 
 | Bucket | Key | Value |
 | --- | --- | --- |
-| `go-worker-durable-meta` | `schema-version` | 字串 `1` |
+| `go-worker-durable-meta` | `schema-version` | 字串 `2` |
 | `go-worker-durable-jobs` | JobID bytes | `encoding/json` 編碼的完整 Job |
+| `go-worker-durable-ready` | 8 byte big-endian 就緒時間（UnixNano）+ JobID bytes | JobID bytes |
+
+**ready index 恰好包含所有 pending 工作，每筆一個項目。**
+就緒時間是 `NextAttemptAt`；未設定時使用使工作變成 pending 的那次更新時間 `UpdatedAt`。
+所有寫入 Job 的路徑都經由同一個函式，在同一交易內刪除舊 pending 項目、寫入新 pending 項目，再寫入 Job。
+另外兩個路徑不經過它：v1 遷移只為既有 pending 新增 index；Purge 只刪除本來就沒有 index 項目的終局 Job。
+因此 index 與 Job 紀錄同時提交，不存在只寫入其中一邊的中間狀態。
 
 Payload 在這個 JSON 外層以 base64 編碼；Retry.Delay 是 duration 的整數奈秒表示。
 目前直接序列化公開 struct 欄位，沒有獨立的儲存 DTO。
@@ -138,14 +148,25 @@ Payload 在這個 JSON 外層以 base64 編碼；Retry.Delay 是 duration 的整
 
 **檔案 schema-version 與 Spec.Version 是兩個不同版本。**
 前者識別儲存格式，後者識別使用方的工作資料。
-Open 拒絕不支援的檔案版本；目前沒有 schema migration API。
+
+| 開啟時的 schema-version | Open 的處理 |
+| --- | --- |
+| 無（新檔案） | 建立三個 bucket，寫入 `2` |
+| `1` | 在同一個初始化交易內建立 ready bucket，為每筆 pending 寫入 index，再改成 `2` |
+| `2` | 要求 ready bucket 存在；缺少時回 `ErrSchema` |
+| 其他 | 回 `ErrSchema`，不修改檔案 |
+
+遷移是單向且就地進行，沒有另外的 migration API 或降版路徑。
+遷移提交後，只支援版本 1 的舊程式會以 `ErrSchema` 拒絕開啟這個檔案；需要回退時，應在升級前另行備份檔案。
+遷移交易失敗則整筆回滾，檔案維持版本 1。
 讀取會驗證必要規格、嘗試範圍與合法狀態；這不等於驗證所有業務資料或所有可能的紀錄損壞。
+claim 若讀到長度不足的 index key、指向不存在的 Job，或指向非 pending 的 Job，也回 `ErrSchema`。
 
 ## 5. 三個交易邊界
 
 ### T1：持久化接納
 
-`Enqueue` 在一個寫入交易中完成「查 JobID → 比較已存在規格或寫入 pending」。
+`Enqueue` 在一個寫入交易中完成「查 JobID → 比較已存在規格或寫入 pending 與其 ready index」。
 只有交易提交成功才回傳接納成功。這條路徑不需要 Master。
 
 若提交完成、回覆尚未送達就中斷，使用方應以同一 JobID 查詢或重送相同規格。
@@ -154,9 +175,13 @@ Open 拒絕不支援的檔案版本；目前沒有 schema migration API。
 
 ### T2：原子領取
 
-`claim` 在一個寫入交易中掃描符合 `pending && NextAttemptAt <= now` 的紀錄，
-將它改成 running、Attempts 加一、清空 NextAttemptAt，再提交。
+`claim` 在一個寫入交易中讀取 ready index 的第一個項目。
+就緒時間晚於 now 時，表示沒有可領取的工作，交易回滾而不同步一次空提交。
+否則讀出對應 Job，將它改成 running、Attempts 加一、清空 NextAttemptAt，同時刪除 index 項目，再提交。
 提交成功後 processor 才把 wrapper 交給 Master。
+
+領取順序是就緒時間，同時間再依 JobID；不再依 JobID 掃描全部紀錄，也不讀取終局紀錄。
+`concurrency` 大於一時，多個工作可同時執行，完成順序仍可能不同。
 
 這裡的 **running 表示已領取嘗試**。它可能還在等待 Master queue 空位或 Worker handoff，
 不能據此斷言 Task 已開始執行。程序在 claim 後中斷，恢復時會保守消耗這次嘗試。
@@ -211,6 +236,9 @@ stateDiagram-v2
     running --> pending: 失敗或中斷；Safe 且有預算
     running --> failed: phase error；不再重試
     running --> unknown: panic 或中斷；不再重試
+    succeeded --> [*]: Purge 刪除
+    failed --> [*]: Purge 刪除
+    unknown --> [*]: Purge 刪除
 ```
 
 failed 與 unknown 是這版的終局狀態，不會單純因重啟或相同 ID 再次 Enqueue 就重派。
@@ -225,7 +253,8 @@ MaxAttempts 大於一時必須宣告 Safe。Safe 只表示使用方承諾冪等�
 | `worker.RecoveryPolicy` | 同一 Worker 位置的替換次數與滾動窗口 | 原有 Master/Worker 記憶體狀態 |
 
 Worker 替換成功不會退還已執行的 Task 嘗試；Task phase error 也不會直接消耗 Worker 替換預算。
-容量不足導致確定未執行的拒絕，可提交退款、保留 pending，之後由使用方恢復 Master 再啟動 Run。
+容量不足導致確定未執行的拒絕，可提交退款、保留 pending，之後由使用方恢復 Master 再啟動 Run；
+或以 `WithDispatchRetry` 讓同一個 Run 等待容量恢復（見下節）。
 
 ### 如何判定確定未執行
 
@@ -238,12 +267,30 @@ Submit 已接納、後來派送失敗的 Future，則依目前核心 Result 合�
 這是與現有 Result 合約的耦合；未來更改 Result 分類時必須連同 durable 核對。
 退款提交若失敗，也不能當成已成功回到 pending。
 
+### 容量暫失時的延後重試
+
+`Run(ctx, master, build, concurrency, WithDispatchRetry(delay))` 改變上述拒絕的後續處理，但不改變退款規則。
+派送錯誤以 `errors.Is` 符合下列之一時，視為只是 Master 暫時沒有 Worker：
+
+| 錯誤 | 意義 |
+| --- | --- |
+| `worker.ErrMasterWorkerPoolIsEmpty` | pool 沒有 Worker |
+| `worker.ErrRecoveryExhausted` | 最後一個 Worker 的替換預算耗盡 |
+| `worker.ErrRecoveryFailed` | 最後一個 Worker 無法替換 |
+
+這時退款交易同時把 NextAttemptAt 設為 now + delay，processor 等待 delay 或 ctx 取消後再領取，Run 不返回。
+使用方在同一個 Master 上 `AddWorkers` 並 `WakeAllWorkersUp` 後，下一次領取即可派送，不需重啟 Run。
+其他派送錯誤（例如 `ErrMasterStopped`）與退款提交失敗仍會結束 Run。
+delay 必須為正數，否則 Run 回 `ErrInvalidRunner`。未使用這個選項時，行為與前一版相同。
+
+這個選項不消耗 Task 嘗試，也不修改 Worker recovery policy；Worker 若一直沒有恢復，Run 會持續等待到 ctx 取消。
+
 ## 7. 中斷點與恢復
 
-Open 取得檔案鎖、初始化或驗證 schema 後，會把所有殘留 running 視為 interrupted。
+Open 取得檔案鎖、初始化、驗證或遷移 schema 後，會把所有殘留 running 視為 interrupted。
 下一次 Run 開始前也會做同一處理，涵蓋上一輪 Run 執行完成但結果提交失敗的情況。
 
-恢復在一個寫入交易內先收集 running 紀錄，再修改：Safe 且有剩餘預算則 pending；其餘 unknown。
+恢復在一個寫入交易內先收集 running 紀錄，再修改：Safe 且有剩餘預算則 pending 並寫入 ready index；其餘 unknown。
 它不會根據 Worker 的舊狀態推定工作有沒有副作用，也不增加額外的嘗試數。
 
 | 中斷／失敗位置 | 可觀察到的持久化狀態 | 處理與限制 |
@@ -254,9 +301,11 @@ Open 取得檔案鎖、初始化或驗證 schema 後，會把所有殘留 runnin
 | 接納後、claim 前 | pending，Attempts 尚未增加 | 之後可派送 |
 | claim 後、Task 開始前中斷 | running | 無法證明未執行，依 interrupted 規則保守處理 |
 | Master 明確拒絕派送 | 成功退款後 pending | Attempts 退款；Run 回傳派送錯誤 |
+| 同上，啟用 `WithDispatchRetry` 且為容量暫失 | 成功退款後 pending，NextAttemptAt 延後 | Run 不返回，等待後重新領取 |
 | Task phase error／panic 已保存 | failed／unknown，或可重試 pending | 按已提交規則處理；不回滾外部副作用 |
 | 副作用已完成、T3 未提交 | running | 結果不明；可能重派已做完的工作 |
 | T3 提交後、程序退出或觀察回覆遺失 | succeeded | Runner 跳過；相同 Enqueue 不建立新工作 |
+| 終局紀錄已被 Purge | 紀錄不存在 | 相同 JobID 再次 Enqueue 會建立新工作 |
 
 **副作用完成與 durable 完成是兩個提交點。**
 目前沒有跨 bbolt 與外部系統的共同交易。
@@ -268,9 +317,20 @@ Open 取得檔案鎖、初始化或驗證 schema 後，會把所有殘留 runnin
 恢復時會成為 unknown，可能連 Init 都沒有執行。這是保守處理不明結果與有限預算的代價。
 未宣告 Safe 或預算耗盡時，unknown 會保留供使用方調查；目前沒有人工 reconcile／重開終局工作的 API。
 
+### 終局紀錄清除
+
+`Purge(ctx, cutoff, states...)` 在一個寫入交易內刪除指定終局狀態、且 `UpdatedAt` 早於 cutoff 的 Job，回傳刪除筆數。
+states 只能是 succeeded、failed、unknown，且至少一個；否則回 `ErrInvalidPurge`。
+因此 unknown 只有在使用方明確列出時才會被刪除。
+終局 Job 沒有 ready index 項目，Run 也不會再修改終局 Job，所以 Purge 可在 Run 執行期間呼叫。
+
+**Purge 也刪除 JobID 的查重依據。**
+被刪除的 JobID 再次 Enqueue 會建立新的 pending 工作；接納請求可能重送的期間內，不應清除對應紀錄。
+Purge 會掃描全部紀錄。bbolt 刪除後會重用釋放的頁面，但不會自動縮小資料檔案。
+
 ## 8. Context、並行與關閉
 
-Enqueue／Job／Jobs 的 context 在進入交易後檢查；掃描也檢查。
+Enqueue／Job／Jobs／Purge 的 context 在進入交易後檢查；掃描也檢查。
 它無法強制打斷 bbolt 寫鎖等待或已開始的提交，所以 deadline 不是儲存呼叫的硬性返回期限。
 
 Run 內部 context 用來協調 processor 與 Master 的接納等待，不傳入 Builder 或 Task。
@@ -281,6 +341,7 @@ Submit 成功後用 `Future.Wait(context.Background())` 等真實結果；取消
 `concurrency` 限制領取／派送／等待結果中的工作數，跟 Master queue capacity 是兩個不同上限。
 沒有工作可領取時等待記憶體 changed 通知或 50ms timer；通知只是喚醒提示，不是持久化資料。
 Task error 已成功保存通常不會停止整個 Runner；派送或儲存錯誤則會。
+例外是啟用 `WithDispatchRetry` 時的容量暫失：該 processor 等待 delay 後繼續，不取消其他 processor。
 
 Run 返回、釋放 running flag 前會等待所有 processor，因此在正常 API 與同步完成契約下，
 同一 JobID 的受管理 Task 嘗試不會因取消 Runner 而重疊執行。
@@ -297,11 +358,11 @@ active Run 期間 Close 回 ErrRunning。Task、Builder、diagnostic formatter �
 | --- | --- |
 | 儲存耦合 | Queue 直接持有 `*bolt.DB`，沒有可替換的 Store 注入；使用 durable 就接受這個後端選擇 |
 | 層次責任 | Queue 同時承擔儲存、領取規則與 Runner 入口；目前容易使用，但後端替換不能只改 Open |
-| 排程與效能 | claim 掃描包含終局紀錄，沒有 ready-state 索引；沒有 FIFO、公平性或大規模吞吐保證 |
-| 容量與留存 | 沒有 durable record 數／payload 大小的產品上限，也沒有刪除、retention 或 compaction API |
+| 排程與效能 | claim 讀取 ready index，依就緒時間領取；Open、Run 開始時的恢復、Jobs 與 Purge 仍讀取全部紀錄；沒有公平性或大規模吞吐保證 |
+| 容量與留存 | 沒有 durable record 數／payload 大小的產品上限；Purge 只依狀態與時間刪除，沒有自動 retention 或檔案 compaction |
 | 不明結果處置 | unknown 可查詢但沒有 reconcile API；只自動重試事先宣告安全且有額度的工作 |
 | 診斷資料 | 只有最新結果，沒有不可變的 attempt history 或型別化業務結果 |
-| 相容與運維 | 沒有 schema migration、備份恢復流程或斷電驗證；需要依使用情境另定義 |
+| 相容與運維 | 只有 Open 時 v1 → v2 的單向就地遷移，沒有降版、備份恢復流程或斷電驗證；需要依使用情境另定義 |
 | 時間來源 | NextAttemptAt 使用牆鐘時間；沒有承諾對任意時鐘跳動保持精確重試延遲 |
 
 先前 [worker pool benchmark](../benchmarks/README.md) 測的是記憶體排程，
@@ -341,13 +402,21 @@ active Run 期間 Close 回 ErrRunning。Task、Builder、diagnostic formatter �
 | 行為 | 測試證據 |
 | --- | --- |
 | 持久化／重開、同 ID 查重／衝突、payload 獨立快照、檔案鎖 | [queue_test.go](../durable/queue_test.go) |
+| ready index 與 pending 一致、就緒順序、v1 遷移、缺 index 拒絕開啟、Purge 狀態與時間條件 | [queue_test.go](../durable/queue_test.go) |
 | 並行領取、全部 phases、取消後等待、Master 拒絕退款 | [run_test.go](../durable/run_test.go) |
+| `WithDispatchRetry` 等待修復後完成、Master 停止仍結束、非正數 delay 拒絕 | [run_test.go](../durable/run_test.go) |
 | Task 與 Worker 預算分離、panic／Goexit／Builder 錯誤、完成提交失敗 | [run_test.go](../durable/run_test.go) |
 | 強制終止於接納後、執行中、工作完成但結果未提交、重試決策已提交 | [crash_test.go](../durable/crash_test.go) |
 | 使用方重建 Task、等待持久化成功 | [example_test.go](../durable/example_test.go) |
 
 實作回合已通過 build、vet、root race/shuffle，以及 durable race/shuffle 重複三輪。
 這次工作是 commit 與架構文件整理，沒有重新執行上述 runtime 測試。
+
+2026-10-23 修訂基線已通過 build、vet、兩個模組的 `go mod tidy -diff`，
+以及 `go test -race -shuffle=on -count=20 ./...`。
+另以未納入 repo 的 claim benchmark 比較：一個 pending 工作排在 100,000 筆終局紀錄之後時，
+每次 claim 從約 132 ms 降到約 6.5 ms；沒有終局紀錄時約 6.3 ms，主要是同步提交成本。
+這只量測單一程序內的 claim，不代表 durable 的整體 throughput。
 
 completion-gap 測試先確認指定檔案副作用完成，再阻擋完成交易並終止程序，
 驗證該中斷點的 fixture 去重；沒有驗證任意中斷點下所有業務副作用的去重。
