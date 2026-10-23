@@ -186,6 +186,10 @@ the Builder or Task. The owner should:
 2. Shut down the Master it owns.
 3. Close the Queue and handle any error.
 
+Use `Master.Shutdown` in step 2 so accepted Tasks finish. `Master.Stop` cancels
+their contexts instead; a Task that then returns an error is recorded like any
+phase error: failed, or a pending retry when its policy is Safe and attempts remain.
+
 Close returns `ErrRunning` while Run is active. A blocked Task or caller-supplied
 callback can delay runner shutdown, just as it can delay Worker shutdown.
 

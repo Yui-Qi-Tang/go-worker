@@ -21,7 +21,8 @@ func (m *Master) Stop() {
 // Shutdown rejects new work, drains accepted submissions, and waits for workers
 // and internal goroutines to exit. Pending synchronous handoffs are rejected.
 // The context limits this wait; draining continues after it expires. Call Stop
-// to abort queued work. Do not wait for shutdown from a task in this same pool.
+// to abort queued work and cancel running tasks' contexts. Do not wait for
+// shutdown from a task in this same pool.
 func (m *Master) Shutdown(ctx context.Context) error {
 	if !m.isInitialized() {
 		return ErrMasterNotInitialized

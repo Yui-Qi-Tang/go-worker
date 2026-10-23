@@ -1,5 +1,8 @@
-// Package worker provides creating worker with consistency task interface for your job.
-// And we also provide a master to manage the workers of this package and support worker failed recovery.
+// Package worker runs tasks with an Init, Run, Done lifecycle on a pool of
+// workers in one process. A Worker executes one task at a time; a Master
+// schedules synchronous calls and a bounded asynchronous queue onto its
+// workers, reports structured results, shuts down gracefully, and can replace
+// workers that panic. The durable subpackage persists jobs before dispatch.
 package worker
 
 import (
@@ -31,19 +34,20 @@ const (
 var (
 	// ErrInvalidLogger indicates an explicitly configured nil logger.
 	ErrInvalidLogger = errors.New("logger must not be nil")
-	// ErrWorkerTaskInit is denoted the worker processes job but get error in Init phase
+	// ErrWorkerTaskInit means the task's Init returned an error; Result.Cause holds it.
 	ErrWorkerTaskInit error = errors.New("worker got error from executing job in Init phase")
-	// ErrWorkerTaskRun is denoted the worker processes job but get error in Run phase
+	// ErrWorkerTaskRun means the task's Run returned an error; Result.Cause holds it.
 	ErrWorkerTaskRun error = errors.New("worker got error from executing job in Run phase")
-	// ErrWorkerTaskDone is denoted the worker process job but get error in Done phase
+	// ErrWorkerTaskDone means the task's Done returned an error; Result.Cause holds it.
 	ErrWorkerTaskDone error = errors.New("worker got error from executing job in Done phase")
-	// ErrWorkerPanic is denoted the worker got panic error from executing job or itself.
+	// ErrWorkerPanic means a task method panicked or called runtime.Goexit,
+	// which stops the worker.
 	ErrWorkerPanic error = errors.New("worker got panic")
-	// ErrWorkerNotStarted is denoted the worker has not started accepting tasks.
+	// ErrWorkerNotStarted means the worker has not been started.
 	ErrWorkerNotStarted error = errors.New("worker is not started")
-	// ErrWorkerAlreadyStarted is denoted the worker has already started accepting tasks.
+	// ErrWorkerAlreadyStarted means Start was called on a started worker.
 	ErrWorkerAlreadyStarted error = errors.New("worker is already started")
-	// ErrWorkerStopped is denoted the worker has already stopped accepting tasks.
+	// ErrWorkerStopped means the worker has stopped accepting tasks.
 	ErrWorkerStopped error = errors.New("worker is stopped")
 	// ErrWorkerNilTask denotes the worker was asked to process a nil task.
 	ErrWorkerNilTask error = errors.New("worker task is nil")
@@ -84,10 +88,11 @@ type Worker struct {
 	stopOnce sync.Once
 }
 
-// Option is a functional option for worker setup
+// Option configures a Worker in NewWorker.
 type Option func(w *Worker)
 
-// WithName is setup worker name
+// WithName sets the worker name, which is also its identity in a Master.
+// The name must not be empty. By default NewWorker generates a UUID.
 func WithName(name string) Option {
 	return func(w *Worker) {
 		w.name = name
@@ -149,8 +154,9 @@ func NewWorker(opts ...Option) (*Worker, error) {
 	return w, nil
 }
 
-// Start waits the work...
-// HINT: it's goroutine!
+// Start launches the worker goroutine and returns immediately. It returns
+// ErrWorkerAlreadyStarted if the worker is running and ErrWorkerStopped once
+// it has been stopped; a stopped worker cannot be restarted.
 func (w *Worker) Start() error {
 	return w.start()
 }

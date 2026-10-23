@@ -46,15 +46,16 @@ type Master struct {
 }
 
 var (
-	// ErrMasterSetupWithTooLargePoolSize is denoted too large pool size
+	// ErrMasterSetupWithTooLargePoolSize means AddWorkers was asked for more
+	// workers than a pool can hold.
 	ErrMasterSetupWithTooLargePoolSize error = errors.New("exceed max pool size " + strconv.FormatUint(uint64(maxPoolSize), 10))
 	// ErrMasterSetupWithInvalidWorkerCount denotes an invalid worker count.
 	ErrMasterSetupWithInvalidWorkerCount error = errors.New("worker count can not be negative")
-	// ErrMasterAddNilWorker is an error that denotes Add nil to Master
+	// ErrMasterAddNilWorker means AddWorker was given a nil worker.
 	ErrMasterAddNilWorker error = errors.New("worker can not be nil")
-	// ErrMasterWorkerPoolIsFull is denote the pool size of Master is full
+	// ErrMasterWorkerPoolIsFull means adding workers would exceed 256 in the pool.
 	ErrMasterWorkerPoolIsFull error = errors.New("pool of Master is full")
-	// ErrMasterWorkerPoolIsEmpty denotes the pool is empty
+	// ErrMasterWorkerPoolIsEmpty means the pool has no workers.
 	ErrMasterWorkerPoolIsEmpty error = errors.New("pool is empty")
 	// ErrMasterStopped denotes the master has already stopped accepting tasks.
 	ErrMasterStopped error = errors.New("master is stopped")
@@ -66,7 +67,7 @@ var (
 
 const maxPoolSize uint = 1 << 8
 
-// MasterOption is an option function form for master
+// MasterOption configures a Master in NewMaster.
 type MasterOption func(m *Master)
 
 // WithWorkerRecovery enables replacement of workers after a panic, subject to

@@ -233,7 +233,8 @@ Draining resolves accepted work to a result: losing the pool can fail queued
 tasks before execution, as described under [worker recovery](#worker-recovery).
 
 A shutdown deadline limits the wait, not the task's execution. Background draining
-continues after a timeout; call `Wait` again, or `Stop` to abort queued work.
+continues after a timeout; call `Wait` again, or `Stop` to abort queued work and
+cancel running tasks' contexts.
 Use a separate shutdown context, as in the quick start, so an expired submission
 context does not immediately expire the shutdown wait.
 
@@ -276,7 +277,7 @@ serving tasks. If that failure removes the last slot, pending and new work recei
 | Condition | Error |
 | --- | --- |
 | Restart budget exhausted | `ErrRecoveryExhausted` |
-| Replacement construction or startup failed | `ErrRecoveryFailed` |
+| Replacement could not be created, started, or registered | `ErrRecoveryFailed` |
 | Empty pool without a recovery failure | `ErrMasterWorkerPoolIsEmpty` |
 
 Exhausted/failed slots do not revive automatically when the window expires.
@@ -312,7 +313,7 @@ idempotency or deduplication and a separate Task attempt budget. Worker replacem
 keeps its existing policy. Tasks receive their worker's context, not the
 runner's, so canceling `Queue.Run` never cancels accepted work.
 
-This first version supports one database owner and one runner, with bounded
+A durable queue supports one database owner and one runner, with bounded
 attempts rather than exactly-once effects. See the [durable contracts and usage](durable/README.md)
 and [runnable example](durable/example_test.go).
 
@@ -346,19 +347,23 @@ and `Worker.Name()` the name set with `WithName` or a generated UUID.
 
 ## Development
 
-CI reads the Go version from `go.mod` and runs build, vet, and race tests:
+CI reads the Go version from `go.mod`. It builds, vets, and race-tests this
+module, checks that both `go.mod` files are tidy, and vets and race-checks the
+benchmark harness:
 
 ```sh
 go build ./...
 go vet ./...
 go test -race ./...
+go mod tidy -diff
 ```
 
 For repeated scheduling checks, run `go test -race -shuffle=on -count=20 ./...`.
 See the [worker pool benchmarks](benchmarks/README.md) for the separate comparison
 module and its fixed workload protocol.
-See the [validation record](docs/feature-evaluation.md),
-[API examples](example_test.go), and [CI workflow](.github/workflows/deploy.yml).
+See the [API examples](example_test.go), the [CI workflow](.github/workflows/deploy.yml),
+the [durable storage design](docs/durable-storage-design.md), and the
+[2026-10-03 validation record](docs/feature-evaluation.md), which predates v1.0.0.
 
 | File | Responsibility |
 | --- | --- |

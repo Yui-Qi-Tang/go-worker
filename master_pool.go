@@ -2,7 +2,9 @@ package worker
 
 import "slices"
 
-// AddWorker adds worker to pool
+// AddWorker registers an initialized, unstopped worker with a unique name.
+// The master takes over its recovery wiring and execution statistics. Start
+// it with WakeAllWorkersUp, or call Start yourself.
 func (m *Master) AddWorker(worker *Worker) error {
 	if worker == nil {
 		return ErrMasterAddNilWorker
@@ -78,7 +80,8 @@ func (m *Master) addWorkerLocked(worker *Worker) {
 	m.queueWorkerLocked(worker)
 }
 
-// AddWorkers creates number of workers with counts; HINT: the workers support recovery
+// AddWorkers creates and registers counts unstarted workers that use the
+// master's logger and recovery setting. Start them with WakeAllWorkersUp.
 func (m *Master) AddWorkers(counts int) error {
 	if counts < 0 {
 		return ErrMasterSetupWithInvalidWorkerCount
@@ -212,7 +215,9 @@ func (m *Master) Workers() int {
 	return len(m.pool)
 }
 
-// WakeAllWorkersUp weaks all of workers in the pool up
+// WakeAllWorkersUp starts every unstarted worker in the pool. Stopped workers
+// are removed, and ErrWorkerStopped is returned after the remaining workers
+// start. It returns ErrMasterWorkerPoolIsEmpty for an empty pool.
 func (m *Master) WakeAllWorkersUp() error {
 	if !m.isInitialized() {
 		return ErrMasterNotInitialized

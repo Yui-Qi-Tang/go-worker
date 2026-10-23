@@ -44,7 +44,8 @@ type Queue struct {
 // Open creates or opens a queue and reconciles interrupted Running attempts.
 // It waits at most one second for the exclusive database file lock. The parent
 // directory must exist. Sync-on-commit is enabled and is not configurable here.
-// A schema version 1 file is migrated to version 2 in the same transaction.
+// A schema version 1 file is migrated to version 2 while opening, in the same
+// transaction that validates the schema.
 func Open(path string) (*Queue, error) {
 	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: time.Second})
 	if err != nil {
@@ -162,8 +163,8 @@ func (q *Queue) Job(ctx context.Context, id string) (Job, error) {
 	return job, err
 }
 
-// Jobs lists detached snapshots in JobID order. Empty state includes all jobs.
-// This small-queue API does not imply FIFO dispatch or load the Tasks themselves.
+// Jobs lists detached snapshots in JobID order, which is not dispatch order.
+// Empty state includes all jobs. It reads every record and does not build Tasks.
 func (q *Queue) Jobs(ctx context.Context, state State) ([]Job, error) {
 	var jobs []Job
 	err := q.view(func(tx *bolt.Tx) error {

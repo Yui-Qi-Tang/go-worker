@@ -1,6 +1,11 @@
 # go-worker 功能實作與驗證
 
 日期：2026-10-03。範圍：Go 1.27.1、單程序、記憶體內 worker pool。
+
+> **歷史紀錄。** 本文記錄 2026-10-03／04 當時的實作與驗證，內容未隨後續版本更新。
+> v1.0.0 起已不適用的部分：`Task` 的 Init／Run／Done 改為接收 Worker 的 context；
+> `Worker.Task` 直接傳送、公開的 channel／`Name`／`Pool` 欄位都已移除；持久化改由 `durable` 套件提供；
+> 需要 Go 1.27.3。現行行為以 [README](../README.md) 與 godoc 為準，差異見 README 的 Versioning 一節。
 原評估中的五項建議已實作；既有 `Task` 介面及同步 API 的 sentinel 回傳方式保留。
 
 ## 實作結果
