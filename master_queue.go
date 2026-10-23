@@ -55,7 +55,7 @@ func (m *Master) submit(ctx context.Context, task Task, block bool) (*Future, er
 	if err := m.grow(len(m.queue) + 1); err != nil {
 		return nil, err
 	}
-	request := &taskRequest{Task: task, future: newFuture()}
+	request := &taskRequest{task: task, future: newFuture()}
 	if !block {
 		select {
 		case m.queue <- request:

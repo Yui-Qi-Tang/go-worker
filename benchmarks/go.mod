@@ -9,7 +9,6 @@ require (
 )
 
 require (
-	github.com/google/uuid v1.6.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 )

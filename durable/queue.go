@@ -13,6 +13,7 @@ import (
 	"time"
 
 	bolt "go.etcd.io/bbolt"
+	berrors "go.etcd.io/bbolt/errors"
 )
 
 var (
@@ -375,7 +376,7 @@ func (q *Queue) view(fn func(*bolt.Tx) error) error {
 }
 
 func databaseError(err error) error {
-	if errors.Is(err, bolt.ErrDatabaseNotOpen) {
+	if errors.Is(err, berrors.ErrDatabaseNotOpen) {
 		return ErrClosed
 	}
 	return err

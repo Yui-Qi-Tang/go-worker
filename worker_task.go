@@ -8,13 +8,13 @@ import (
 // taskRequest carries a task and where its result goes: future for a
 // submission, completed on the worker goroutine, or result for a waiting caller.
 type taskRequest struct {
-	Task
+	task   Task
 	result chan Result
 	future *Future
 }
 
 func newTaskRequest(task Task) *taskRequest {
-	return &taskRequest{Task: task, result: make(chan Result, 1)}
+	return &taskRequest{task: task, result: make(chan Result, 1)}
 }
 
 func (w *Worker) executeTask(ctx context.Context, task Task, result *Result) {
@@ -59,8 +59,6 @@ func (w *Worker) taskFailure(ctx context.Context, task Task, result *Result, sen
 	w.logger.LogAttrs(ctx, slog.LevelError, event, slog.String("worker", w.name), slog.String("task_name", readTaskID(task, result)), slog.Any("reason", cause))
 }
 
-func (w *Worker) reportTaskResult(request *taskRequest, result Result) { request.reply(result) }
-
 func (r *taskRequest) reply(result Result) {
 	if r.future != nil {
 		r.future.complete(result)
@@ -90,7 +88,7 @@ func (w *Worker) prepareTask(ctx context.Context, request *taskRequest) error {
 	if err := w.readyError(); err != nil {
 		return err
 	}
-	if isNilTask(request.Task) {
+	if isNilTask(request.task) {
 		return ErrWorkerNilTask
 	}
 	return w.sendTaskContext(ctx, request)

@@ -12,48 +12,47 @@ import (
 	"runtime/debug"
 	"sync"
 	"time"
-
-	guuid "github.com/google/uuid"
+	"uuid"
 )
 
 const (
 	// normal events
-	workerEventStart    string = "starting"
-	workerEventDone     string = "done"
-	workerEventReceived string = "received-task"
-	workerEventQuit     string = "quit"
+	workerEventStart    = "starting"
+	workerEventDone     = "done"
+	workerEventReceived = "received-task"
+	workerEventQuit     = "quit"
 	// error
-	workerErrInit string = "error-init"
-	workerErrRun  string = "error-run"
-	workerErrDone string = "error-done"
+	workerErrInit = "error-init"
+	workerErrRun  = "error-run"
+	workerErrDone = "error-done"
 	// panic
-	workerPanic string = "panic"
+	workerPanic = "panic"
 )
 
 var (
 	// ErrInvalidLogger indicates an explicitly configured nil logger.
 	ErrInvalidLogger = errors.New("logger must not be nil")
 	// ErrWorkerTaskInit means the task's Init returned an error; Result.Cause holds it.
-	ErrWorkerTaskInit error = errors.New("worker got error from executing job in Init phase")
+	ErrWorkerTaskInit = errors.New("task Init phase failed")
 	// ErrWorkerTaskRun means the task's Run returned an error; Result.Cause holds it.
-	ErrWorkerTaskRun error = errors.New("worker got error from executing job in Run phase")
+	ErrWorkerTaskRun = errors.New("task Run phase failed")
 	// ErrWorkerTaskDone means the task's Done returned an error; Result.Cause holds it.
-	ErrWorkerTaskDone error = errors.New("worker got error from executing job in Done phase")
+	ErrWorkerTaskDone = errors.New("task Done phase failed")
 	// ErrWorkerPanic means a task method panicked or called runtime.Goexit,
 	// which stops the worker.
-	ErrWorkerPanic error = errors.New("worker got panic")
+	ErrWorkerPanic = errors.New("task panicked")
 	// ErrWorkerNotStarted means the worker has not been started.
-	ErrWorkerNotStarted error = errors.New("worker is not started")
+	ErrWorkerNotStarted = errors.New("worker is not started")
 	// ErrWorkerAlreadyStarted means Start was called on a started worker.
-	ErrWorkerAlreadyStarted error = errors.New("worker is already started")
+	ErrWorkerAlreadyStarted = errors.New("worker is already started")
 	// ErrWorkerStopped means the worker has stopped accepting tasks.
-	ErrWorkerStopped error = errors.New("worker is stopped")
+	ErrWorkerStopped = errors.New("worker is stopped")
 	// ErrWorkerNilTask denotes the worker was asked to process a nil task.
-	ErrWorkerNilTask error = errors.New("worker task is nil")
+	ErrWorkerNilTask = errors.New("task is nil")
 	// ErrWorkerInvalidName denotes a worker was configured with an empty name.
-	ErrWorkerInvalidName error = errors.New("worker name can not be empty")
+	ErrWorkerInvalidName = errors.New("worker name cannot be empty")
 	// ErrWorkerNotInitialized denotes a worker was not created with package invariants.
-	ErrWorkerNotInitialized error = errors.New("worker is not initialized")
+	ErrWorkerNotInitialized = errors.New("worker is not initialized")
 )
 
 // Worker executes one task at a time. A standalone Worker, created by
@@ -85,12 +84,12 @@ type Worker struct {
 	stopOnce sync.Once
 }
 
-// Option configures a Worker in NewWorker.
-type Option func(w *Worker)
+// WorkerOption configures a Worker in NewWorker.
+type WorkerOption func(w *Worker)
 
 // WithName sets the worker name used in its logs. The name must not be
 // empty. By default NewWorker generates a UUID.
-func WithName(name string) Option {
+func WithName(name string) WorkerOption {
 	return func(w *Worker) {
 		w.name = name
 	}
@@ -98,7 +97,7 @@ func WithName(name string) Option {
 
 // WithLogger sets the worker's logger. The default is slog.Default(). A nil
 // logger is rejected.
-func WithLogger(logger *slog.Logger) Option {
+func WithLogger(logger *slog.Logger) WorkerOption {
 	return func(w *Worker) {
 		w.logger = logger
 		w.loggerConfigured = true
@@ -106,9 +105,9 @@ func WithLogger(logger *slog.Logger) Option {
 }
 
 // NewWorker returns an initialized, unstarted worker.
-func NewWorker(opts ...Option) (*Worker, error) {
+func NewWorker(opts ...WorkerOption) (*Worker, error) {
 	w := &Worker{
-		name: guuid.New().String(),
+		name: uuid.New().String(),
 		quit: make(chan any), task: make(chan *taskRequest),
 		done: make(chan struct{}),
 	}
@@ -131,7 +130,7 @@ func NewWorker(opts ...Option) (*Worker, error) {
 // its task context through cancelTask.
 func newPoolWorker(m *Master) (*Worker, error) {
 	w := &Worker{
-		name: guuid.New().String(), owner: m,
+		name: uuid.New().String(), owner: m,
 		quit: make(chan any), task: make(chan *taskRequest),
 		done:   make(chan struct{}),
 		logger: m.logger,
@@ -151,10 +150,6 @@ func (w *Worker) start() error {
 		return ErrWorkerNotInitialized
 	}
 	w.mu.Lock()
-	if !w.isInitialized() {
-		w.mu.Unlock()
-		return ErrWorkerNotInitialized
-	}
 	if w.stopped {
 		w.mu.Unlock()
 		return ErrWorkerStopped
@@ -205,7 +200,7 @@ func (w *Worker) run() {
 			return
 		case request := <-w.task:
 			if w.isStopped() {
-				w.reportTaskResult(request, Result{Err: ErrWorkerStopped})
+				request.reply(Result{Err: ErrWorkerStopped})
 				return
 			}
 			w.execute(ctx, &st, request)
@@ -290,10 +285,10 @@ func (w *Worker) execute(ctx context.Context, st *runState, request *taskRequest
 		w.ownerMetrics.begin()
 	}
 	st.request, st.active, st.result = request, true, Result{}
-	w.executeTask(ctx, request.Task, &st.result)
+	w.executeTask(ctx, request.task, &st.result)
 	w.finishTask(st.result)
 	st.active = false
-	w.reportTaskResult(request, st.result)
+	request.reply(st.result)
 	st.request = nil
 }
 
@@ -323,7 +318,7 @@ func (w *Worker) recoverRun(st *runState) {
 		w.owner.workerExited(w, panicked)
 	}
 	if st.active {
-		w.reportTaskResult(st.request, st.result)
+		st.request.reply(st.result)
 	}
 	if panicked {
 		w.logPanic(reason)
@@ -408,10 +403,6 @@ func (w *Worker) readyError() error {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-
-	if !w.isInitialized() {
-		return ErrWorkerNotInitialized
-	}
 	if w.stopped {
 		return ErrWorkerStopped
 	}

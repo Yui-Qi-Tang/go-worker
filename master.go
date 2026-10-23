@@ -20,9 +20,9 @@ var (
 	ErrInvalidWorkers = fmt.Errorf("workers must satisfy 0 <= min <= max and 1 <= max <= %d", maxPoolSize)
 	// ErrMasterStopped means the master no longer accepts tasks, or a queued
 	// task was abandoned by Stop.
-	ErrMasterStopped error = errors.New("master is stopped")
+	ErrMasterStopped = errors.New("master is stopped")
 	// ErrMasterNotInitialized means a Master was not created by NewMaster.
-	ErrMasterNotInitialized error = errors.New("master is not initialized")
+	ErrMasterNotInitialized = errors.New("master is not initialized")
 	// ErrInvalidIdleTimeout means WithIdleTimeout was given a non-positive duration.
 	ErrInvalidIdleTimeout = errors.New("idle timeout must be positive")
 )

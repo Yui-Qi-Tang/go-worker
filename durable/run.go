@@ -17,6 +17,12 @@ import (
 // business effects belong to its phases.
 type Builder func(context.Context, Job) (worker.Task, error)
 
+// Submitter runs a Task asynchronously and returns its Future.
+// *worker.Master implements it; Run needs nothing else from the pool.
+type Submitter interface {
+	Submit(ctx context.Context, task worker.Task) (*worker.Future, error)
+}
+
 // RunOption configures Run.
 type RunOption func(*runConfig)
 
@@ -47,15 +53,16 @@ func (c runConfig) retryable(err error) bool {
 // errDispatchDeferred reports a retryable dispatch rejection already persisted.
 var errDispatchDeferred = errors.New("durable dispatch deferred")
 
-// Run dispatches through Master.Submit with at most concurrency in-flight jobs.
-// Configure the Master with a positive queue capacity. Run owns neither the
-// Master's lifecycle nor its Worker recovery policy. One Queue permits one Run.
+// Run executes jobs through pool, usually a *worker.Master, with at most
+// concurrency in-flight jobs. Configure the Master with a positive queue
+// capacity. Run owns neither the pool's lifecycle nor its recovery policy.
+// One Queue permits one Run.
 //
 // Cancellation stops new admission, then waits for accepted Tasks and commits
 // their outcomes before returning. Tasks receive their Worker's context, not
 // ctx, so canceling Run never cancels required work; Master.Stop does. A
 // blocked Task can therefore delay Run's return.
-func (q *Queue) Run(ctx context.Context, master *worker.Master, build Builder, concurrency int, opts ...RunOption) error {
+func (q *Queue) Run(ctx context.Context, pool Submitter, build Builder, concurrency int, opts ...RunOption) error {
 	if q == nil || q.db == nil {
 		return ErrClosed
 	}
@@ -63,7 +70,7 @@ func (q *Queue) Run(ctx context.Context, master *worker.Master, build Builder, c
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	if master == nil || build == nil || concurrency < 1 || (cfg.dispatchRetry && cfg.retryDelay <= 0) {
+	if pool == nil || build == nil || concurrency < 1 || (cfg.dispatchRetry && cfg.retryDelay <= 0) {
 		return ErrInvalidRunner
 	}
 	q.mu.Lock()
@@ -93,7 +100,7 @@ func (q *Queue) Run(ctx context.Context, master *worker.Master, build Builder, c
 	var wg sync.WaitGroup
 	for range concurrency {
 		wg.Go(func() {
-			if err := q.process(runCtx, master, build, cfg); err != nil {
+			if err := q.process(runCtx, pool, build, cfg); err != nil {
 				failures <- err
 				cancel()
 			}
@@ -108,7 +115,7 @@ func (q *Queue) Run(ctx context.Context, master *worker.Master, build Builder, c
 	return errors.Join(result, ctx.Err())
 }
 
-func (q *Queue) process(ctx context.Context, master *worker.Master, build Builder, cfg runConfig) error {
+func (q *Queue) process(ctx context.Context, pool Submitter, build Builder, cfg runConfig) error {
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -133,7 +140,7 @@ func (q *Queue) process(ctx context.Context, master *worker.Master, build Builde
 			timer.Stop()
 			continue
 		}
-		err = q.execute(ctx, master, build, job, cfg)
+		err = q.execute(ctx, pool, build, job, cfg)
 		if errors.Is(err, errDispatchDeferred) {
 			timer := time.NewTimer(cfg.retryDelay)
 			select {
@@ -149,8 +156,8 @@ func (q *Queue) process(ctx context.Context, master *worker.Master, build Builde
 	}
 }
 
-func (q *Queue) execute(ctx context.Context, master *worker.Master, build Builder, job Job, cfg runConfig) error {
-	future, err := master.Submit(ctx, &rebuiltTask{job: job, build: build})
+func (q *Queue) execute(ctx context.Context, pool Submitter, build Builder, job Job, cfg runConfig) error {
+	future, err := pool.Submit(ctx, &rebuiltTask{job: job, build: build})
 	if err != nil {
 		return q.deferDispatch(job.ID, err, cfg)
 	}

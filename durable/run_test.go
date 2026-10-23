@@ -670,3 +670,25 @@ func TestRunnerCancellationDoesNotCancelTaskContext(t *testing.T) {
 		t.Fatal(job)
 	}
 }
+
+// failingSubmitter rejects every task, standing in for a pool without workers.
+type failingSubmitter struct{ err error }
+
+func (s failingSubmitter) Submit(context.Context, worker.Task) (*worker.Future, error) {
+	return nil, s.err
+}
+
+func TestRunAcceptsAnySubmitter(t *testing.T) {
+	q := openQueue(t)
+	accepted, err := q.Enqueue(context.Background(), spec("rejected"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	build := func(context.Context, Job) (worker.Task, error) { return &testTask{}, nil }
+	if err := q.Run(context.Background(), failingSubmitter{err: worker.ErrRecoveryExhausted}, build, 1); !errors.Is(err, worker.ErrRecoveryExhausted) {
+		t.Fatalf("Run = %v", err)
+	}
+	if job, err := q.Job(context.Background(), accepted.ID); err != nil || job.State != Pending || job.Attempts != 0 {
+		t.Fatalf("job = %+v, %v", job, err)
+	}
+}

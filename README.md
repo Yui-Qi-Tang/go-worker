@@ -425,7 +425,7 @@ follows semantic versioning. Compared with unreleased checkouts under
   `WakeAllWorkersUp`, and `Workers` replaces `GetWorkers`/`GetPoolSize`;
 - always replaces panicked workers under a pool-wide `RecoveryPolicy`, so
   `WithWorkerRecovery` and `RecoveryWorker` are removed;
-- removes the `Dispatch` alias;
+- removes the `Dispatch` alias and renames the worker's `Option` to `WorkerOption`;
 - logs through `log/slog` instead of zap: `WithLogger` and `WithMasterLogger`
   take a `*slog.Logger`;
 - migrates durable queue files to schema version 2 when opened.
