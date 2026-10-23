@@ -24,7 +24,7 @@ supports up to 256 registered workers.
 
 ## Requirements and import
 
-Requires **Go 1.27.1 or newer**, as declared in `go.mod`. The package name is
+Requires **Go 1.27.3 or newer**, as declared in `go.mod`. The package name is
 `worker`; the module currently uses the legacy path `yuki-tang.github.com`.
 Import it as `worker "yuki-tang.github.com"`.
 
@@ -369,5 +369,5 @@ by Git. Refresh it after substantial source changes.
 
 The Go upgrade preserves existing public method signatures and task-phase
 sentinels. Errors use standard-library `errors` and `fmt.Errorf`; the previous
-`pkg/errors` stack formatting and `Cause()` API are not retained. UUID and Zap
-versions remain unchanged.
+`pkg/errors` stack formatting and `Cause()` API are not retained. Dependencies
+were later upgraded to UUID v1.6.0 and Zap v1.28.0 without API changes here.
