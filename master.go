@@ -92,7 +92,7 @@ func WithMasterLogger(logger *zap.Logger) MasterOption {
 // before submitting tasks. The asynchronous queue is disabled by default.
 func NewMaster(opts ...MasterOption) (*Master, error) {
 	m := &Master{
-		Quit: make(chan bool), WorkerQueue: make(chan *Worker), Pool: make([]*Worker, 0),
+		Quit: make(chan bool), WorkerQueue: make(chan *Worker, maxPoolSize), Pool: make([]*Worker, 0),
 		acceptDone: make(chan struct{}), done: make(chan struct{}), queueChanged: make(chan struct{}), poolChanged: make(chan struct{}),
 		recoveryPolicy:    RecoveryPolicy{MaxRestarts: 5, Window: time.Minute},
 		newRecoveryWorker: NewWorker,
@@ -130,6 +130,14 @@ func (m *Master) queueWorker(worker *Worker) {
 func (m *Master) queueWorkerLocked(worker *Worker) {
 	if m.stopped {
 		return
+	}
+	// The buffer normally holds one token per pool slot, so a release queues
+	// without a goroutine. Stale tokens of removed workers can still fill it;
+	// then wait in the background rather than block while m is locked.
+	select {
+	case m.WorkerQueue <- worker:
+		return
+	default:
 	}
 	m.backgroundWG.Go(func() {
 		select {
