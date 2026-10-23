@@ -737,3 +737,28 @@ func TestLegacyNilPanicStillCompletesTask(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestWorkerLogsTaskEventsWhenInfoEnabled(t *testing.T) {
+	core, logs := observer.New(zap.InfoLevel)
+	w, err := NewWorker(WithName("logged-worker"), WithLogger(zap.New(core)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+	if err := w.Do(phaseErrorTask{id: "logged-task"}); err != nil {
+		t.Fatal(err)
+	}
+	for event, key := range map[string]string{workerEventReceived: "task_name", workerEventDone: "task_id"} {
+		entries := logs.FilterMessage(event).AllUntimed()
+		if len(entries) != 1 {
+			t.Fatalf("%s log count=%d, want 1", event, len(entries))
+		}
+		fields := entries[0].ContextMap()
+		if fields["worker"] != "logged-worker" || fields[key] != "logged-task" {
+			t.Fatalf("%s fields=%v", event, fields)
+		}
+	}
+}

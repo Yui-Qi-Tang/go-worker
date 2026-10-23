@@ -24,7 +24,12 @@ func (w *Worker) executeTask(task Task, result *Result) {
 		result.Err = ErrWorkerNilTask
 		return
 	}
-	w.logger.Info(workerEventReceived, zap.String("worker", w.Name), zap.String("task_name", readTaskID(task, result)))
+	// ID is read even when logging is disabled; Result.TaskID depends on it.
+	// Check avoids building log fields for a disabled level on every task.
+	taskID := readTaskID(task, result)
+	if ce := w.logger.Check(zap.InfoLevel, workerEventReceived); ce != nil {
+		ce.Write(zap.String("worker", w.Name), zap.String("task_name", taskID))
+	}
 	result.Phase = PhaseInit
 	if err := task.Init(); err != nil {
 		w.taskFailure(task, result, ErrWorkerTaskInit, err, workerErrInit)
@@ -40,7 +45,10 @@ func (w *Worker) executeTask(task Task, result *Result) {
 		w.taskFailure(task, result, ErrWorkerTaskDone, err, workerErrDone)
 		return
 	}
-	w.logger.Info(workerEventDone, zap.String("worker", w.Name), zap.String("task_id", readTaskID(task, result)))
+	taskID = readTaskID(task, result)
+	if ce := w.logger.Check(zap.InfoLevel, workerEventDone); ce != nil {
+		ce.Write(zap.String("worker", w.Name), zap.String("task_id", taskID))
+	}
 	result.Phase = ""
 }
 
