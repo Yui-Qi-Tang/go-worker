@@ -14,7 +14,7 @@ func TestMasterDispatchWithEmptyPoolReturnsError(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- ms.Dispatch(phaseErrorTask{id: "empty-pool"})
+		done <- ms.Schedule(phaseErrorTask{id: "empty-pool"})
 	}()
 
 	select {
@@ -36,7 +36,7 @@ func TestMasterDispatchWithRecoveryEnabledEmptyPoolReturnsError(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- ms.Dispatch(phaseErrorTask{id: "recovery-empty-pool"})
+		done <- ms.Schedule(phaseErrorTask{id: "recovery-empty-pool"})
 	}()
 
 	select {

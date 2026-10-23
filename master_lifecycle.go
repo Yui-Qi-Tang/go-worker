@@ -33,8 +33,8 @@ func (m *Master) Wait(ctx context.Context) error {
 }
 
 func (m *Master) beginShutdown() {
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.closing {
 		return
 	}
@@ -52,13 +52,13 @@ func (m *Master) beginShutdown() {
 
 func (m *Master) stopNow() {
 	m.stopOnce.Do(func() {
-		m.Lock()
-		defer m.Unlock()
+		m.mu.Lock()
+		defer m.mu.Unlock()
 		m.stopped = true
-		for _, w := range m.Pool {
+		for _, w := range m.pool {
 			w.Stop()
 		}
 		m.stopWorkerRecovery()
-		close(m.Quit)
+		close(m.quit)
 	})
 }

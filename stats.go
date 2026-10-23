@@ -2,7 +2,7 @@ package worker
 
 import "sync"
 
-// TaskStats counts executions, including direct Worker.Task submissions.
+// TaskStats counts executions, including direct Worker.Do calls.
 // Pre-execution rejections are excluded. Started always equals Succeeded +
 // Failed + Panicked + InFlight within a snapshot.
 type TaskStats struct {
@@ -59,8 +59,8 @@ func (w *Worker) Stats() WorkerStats {
 	if !w.isInitialized() {
 		return WorkerStats{}
 	}
-	w.Lock()
-	defer w.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	return WorkerStats{TaskStats: w.metrics.snapshot(), Running: w.started && !w.stopped, Stopped: w.stopped}
 }
 
@@ -82,10 +82,10 @@ func (m *Master) Stats() MasterStats {
 	if !m.isInitialized() {
 		return MasterStats{}
 	}
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return MasterStats{
-		TaskStats: m.metrics.snapshot(), Workers: len(m.Pool),
+		TaskStats: m.metrics.snapshot(), Workers: len(m.pool),
 		Queued: len(m.pending), QueueCapacity: m.queueCapacity,
 		Closing: m.closing, Stopped: m.stopped,
 	}

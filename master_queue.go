@@ -45,13 +45,13 @@ func (m *Master) submit(ctx context.Context, task Task, block bool) (*Future, er
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		m.Lock()
+		m.mu.Lock()
 		if err := m.acceptReadyErrorLocked(); err != nil {
-			m.Unlock()
+			m.mu.Unlock()
 			return nil, err
 		}
 		if m.queueCapacity == 0 {
-			m.Unlock()
+			m.mu.Unlock()
 			return nil, ErrQueueDisabled
 		}
 		if len(m.pending) < m.queueCapacity {
@@ -59,11 +59,11 @@ func (m *Master) submit(ctx context.Context, task Task, block bool) (*Future, er
 			m.tasksWG.Add(1)
 			m.pending = append(m.pending, &taskRequest{Task: task, master: m, future: future})
 			m.signalQueueChangedLocked()
-			m.Unlock()
+			m.mu.Unlock()
 			return future, nil
 		}
 		changed := m.watchQueueLocked()
-		m.Unlock()
+		m.mu.Unlock()
 		if !block {
 			return nil, ErrQueueFull
 		}
@@ -96,30 +96,30 @@ func (m *Master) signalQueueChangedLocked() {
 
 func (m *Master) runQueue() {
 	for {
-		m.Lock()
+		m.mu.Lock()
 		if len(m.pending) == 0 {
 			stopped, changed := m.stopped, m.watchQueueLocked()
-			m.Unlock()
+			m.mu.Unlock()
 			if stopped {
 				return
 			}
 			select {
 			case <-changed:
-			case <-m.Quit:
+			case <-m.quit:
 			}
 			continue
 		}
 		job := m.pending[0]
-		m.Unlock()
+		m.mu.Unlock()
 
 		// Retain the head in the queue until handoff so waiting submissions
 		// cannot escape the configured bound by spawning dispatch goroutines.
 		_, err := m.dispatch(context.Background(), job, nil)
-		m.Lock()
+		m.mu.Lock()
 		m.pending[0] = nil
 		m.pending = m.pending[1:]
 		m.signalQueueChangedLocked()
-		m.Unlock()
+		m.mu.Unlock()
 		if err != nil {
 			job.future.complete(Result{Err: err})
 			m.tasksWG.Done()

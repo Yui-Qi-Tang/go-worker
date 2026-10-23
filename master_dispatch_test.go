@@ -60,7 +60,7 @@ func TestMasterDispatchReturnsTaskErrors(t *testing.T) {
 
 	for _, testcase := range testcases {
 		t.Run(testcase.name, func(t *testing.T) {
-			if got := ms.Dispatch(testcase.task); got != testcase.want {
+			if got := ms.Schedule(testcase.task); got != testcase.want {
 				t.Fatalf("Dispatch() error = %v, want %v", got, testcase.want)
 			}
 		})
@@ -74,12 +74,12 @@ func TestMasterDispatchNilTaskReturnsTaskErrorBeforePoolState(t *testing.T) {
 	}
 	defer ms.Stop()
 
-	if got := ms.Dispatch(nil); got != ErrWorkerNilTask {
+	if got := ms.Schedule(nil); got != ErrWorkerNilTask {
 		t.Fatalf("Dispatch(nil) error = %v, want %v", got, ErrWorkerNilTask)
 	}
 
 	var typedNil *phaseErrorTask
-	if got := ms.Dispatch(typedNil); got != ErrWorkerNilTask {
+	if got := ms.Schedule(typedNil); got != ErrWorkerNilTask {
 		t.Fatalf("Dispatch(typed nil) error = %v, want %v", got, ErrWorkerNilTask)
 	}
 }

@@ -14,7 +14,7 @@ func TestMasterGetPoolSizeReturnsWorkerCount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := ms.GetPoolSize(); got != workers {
+	if got := ms.Workers(); got != workers {
 		t.Fatalf("GetPoolSize() = %d, want %d", got, workers)
 	}
 }

@@ -47,11 +47,11 @@ func TestMasterRecoveryUsesWorkerIdentityAfterNameMutation(t *testing.T) {
 	}
 	defer ms.Stop()
 
-	first, err := NewWorker(WithName("first-worker"), WithRecovery(true))
+	first, err := NewWorker(WithName("first-worker"), withRecovery(true))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := NewWorker(WithName("second-worker"), WithRecovery(true))
+	second, err := NewWorker(WithName("second-worker"), withRecovery(true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestMasterRecoveryUsesWorkerIdentityAfterNameMutation(t *testing.T) {
 	if err := ms.AddWorker(second); err != nil {
 		t.Fatal(err)
 	}
-	second.Name = first.Name
+	second.name = first.name
 
 	if err := ms.WakeAllWorkersUp(); err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestMasterRecoveryUsesWorkerIdentityAfterNameMutation(t *testing.T) {
 	if workerInPool(ms, second) {
 		t.Fatal("recovery left the panicked worker in the pool")
 	}
-	if got := ms.GetWorkers(); got != 2 {
+	if got := ms.Workers(); got != 2 {
 		t.Fatalf("workers after duplicate-name recovery = %d, want 2", got)
 	}
 }
@@ -119,7 +119,7 @@ func TestMasterRecoveryPreservesRegisteredWorkerIdentity(t *testing.T) {
 	if got := ms.AddWorker(duplicate); got != ErrMasterDuplicateWorkerName {
 		t.Fatalf("AddWorker(duplicate after recovery) error = %v, want %v", got, ErrMasterDuplicateWorkerName)
 	}
-	if got := ms.GetWorkers(); got != 1 {
+	if got := ms.Workers(); got != 1 {
 		t.Fatalf("workers after rejected duplicate recovery identity = %d, want 1", got)
 	}
 }
@@ -139,7 +139,7 @@ func TestMasterAddWorkerAttachesRecoveryChannel(t *testing.T) {
 	if err := ms.AddWorker(worker); err != nil {
 		t.Fatal(err)
 	}
-	if worker.Recovery != ms.workerPanic {
+	if worker.recovery != ms.workerPanic {
 		t.Fatal("AddWorker did not attach the master recovery channel")
 	}
 	if got := receiveQueuedWorker(t, ms); got != worker {
@@ -150,11 +150,8 @@ func TestMasterAddWorkerAttachesRecoveryChannel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	go func() {
-		worker.Task <- panicErr
-	}()
-	if got := worker.waitStatus(); got != workerPanic {
-		t.Fatalf("worker status = %s, want %s", got, workerPanic)
+	if got := worker.Do(panicErr); got != ErrWorkerPanic {
+		t.Fatalf("direct Do() error = %v, want %v", got, ErrWorkerPanic)
 	}
 
 	waitForWorkerReplacement(t, ms, worker)
@@ -174,18 +171,18 @@ func TestMasterAddWorkerClearsRecoveryChannelWhenDisabled(t *testing.T) {
 	}
 	defer ms.Stop()
 
-	worker, err := NewWorker(WithName("orphan-recovery-worker"), WithRecovery(true))
+	worker, err := NewWorker(WithName("orphan-recovery-worker"), withRecovery(true))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if worker.Recovery == nil {
+	if worker.recovery == nil {
 		t.Fatal("test worker should start with a recovery channel")
 	}
 
 	if err := ms.AddWorker(worker); err != nil {
 		t.Fatal(err)
 	}
-	if worker.Recovery != nil {
+	if worker.recovery != nil {
 		t.Fatal("AddWorker kept an orphan recovery channel on a non-recovery master")
 	}
 }
@@ -194,7 +191,7 @@ func receiveQueuedWorker(t *testing.T, ms *Master) *Worker {
 	t.Helper()
 
 	select {
-	case worker := <-ms.WorkerQueue:
+	case worker := <-ms.workerQueue:
 		return worker
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for queued worker")
@@ -203,10 +200,10 @@ func receiveQueuedWorker(t *testing.T, ms *Master) *Worker {
 }
 
 func workerInPool(ms *Master, target *Worker) bool {
-	ms.RLock()
-	defer ms.RUnlock()
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
 
-	return slices.Contains(ms.Pool, target)
+	return slices.Contains(ms.pool, target)
 }
 
 func captureStderr(t *testing.T) func() string {

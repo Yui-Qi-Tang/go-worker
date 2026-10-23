@@ -20,7 +20,7 @@ func TestMasterDispatchAfterPanicWithoutRecoveryReturnsEmptyPool(t *testing.T) {
 		t.Fatalf("panic Dispatch() error = %v, want %v", got, ErrWorkerPanic)
 	}
 
-	if got := ms.GetWorkers(); got != 0 {
+	if got := ms.Workers(); got != 0 {
 		t.Fatalf("workers after panic = %d, want 0", got)
 	}
 

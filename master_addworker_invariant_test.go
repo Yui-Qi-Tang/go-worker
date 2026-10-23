@@ -14,7 +14,7 @@ func TestMasterAddWorkerRejectsZeroValueWorkerAsUninitialized(t *testing.T) {
 	if got := ms.AddWorker(w); got != ErrWorkerNotInitialized {
 		t.Fatalf("AddWorker(zero-value worker) error = %v, want %v", got, ErrWorkerNotInitialized)
 	}
-	if got := ms.GetWorkers(); got != 0 {
+	if got := ms.Workers(); got != 0 {
 		t.Fatalf("workers after rejected zero-value worker = %d, want 0", got)
 	}
 }

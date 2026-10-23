@@ -148,7 +148,7 @@ by a task need their own lifecycle and panic handling.
 | API | Behavior |
 | --- | --- |
 | `Worker.Do(task)` | Wait for execution on one worker; return an error |
-| `Master.Schedule(task)` / `Dispatch(task)` | Wait for an available worker and the result |
+| `Master.Schedule(task)` | Wait for an available worker and the result |
 | `DoContext(ctx, task)` / `ScheduleContext(ctx, task)` | Cancel waiting before task handoff |
 | `DoResult(ctx, task)` / `ScheduleResult(ctx, task)` | Same handoff rules, returning a `Result` |
 | `Master.Submit(ctx, task)` | Wait for queue space; return a `*Future` after admission |
@@ -329,10 +329,10 @@ started after registration and survive worker replacement. Master snapshots also
 include worker count, pending queue count, capacity, and shutdown state; those
 fields and execution counters are sampled separately, not as a global atomic view.
 
-Use a worker in one master at a time. Configure exported fields before work
-starts; do not mutate channels, names, or pool membership concurrently with the
-library. Direct `Worker.Task` sends bypass master admission and queue capacity;
-use the method APIs when those guarantees are required.
+Use a worker in one master at a time. `Worker.Do` on a worker that belongs to a
+master bypasses master admission and queue capacity; use the master's methods
+when those guarantees are required. `Master.Workers()` reports the pool size,
+and `Worker.Name()` the name set with `WithName` or a generated UUID.
 
 ## Development
 

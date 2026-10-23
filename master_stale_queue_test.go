@@ -7,7 +7,7 @@ func TestMasterScheduleSkipsRemovedQueuedWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ms.WorkerQueue = make(chan *Worker, 2)
+	ms.workerQueue = make(chan *Worker, 2)
 	defer ms.Stop()
 
 	stale, err := NewWorker(WithName("stale-worker"))
@@ -44,7 +44,7 @@ func TestMasterScheduleSkipsQueuedWorkerWithReusedIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ms.WorkerQueue = make(chan *Worker, 3)
+	ms.workerQueue = make(chan *Worker, 3)
 	defer ms.Stop()
 
 	stale, err := NewWorker(WithName("reused-worker"))
@@ -63,7 +63,7 @@ func TestMasterScheduleSkipsQueuedWorkerWithReusedIdentity(t *testing.T) {
 		t.Fatal("failed to remove stale worker from pool")
 	}
 
-	ms.WorkerQueue <- stale
+	ms.workerQueue <- stale
 
 	replacement, err := NewWorker(WithName("reused-worker"))
 	if err != nil {
@@ -90,7 +90,7 @@ func TestMasterQueuesWorkerWhenTokenBufferIsFull(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Stale tokens can fill the buffer; a release must still reach dispatch.
-	ms.WorkerQueue = make(chan *Worker)
+	ms.workerQueue = make(chan *Worker)
 	defer ms.Stop()
 
 	worker, err := NewWorker(WithName("full-buffer-worker"))

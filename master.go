@@ -10,16 +10,17 @@ import (
 	"go.uber.org/zap"
 )
 
-// Master manages worker
+// Master schedules tasks onto a pool of workers and optionally replaces
+// workers that panic.
 type Master struct {
-	sync.RWMutex
-	Pool []*Worker // memo: save worker here, can we re-run the stopped worker?
+	mu   sync.RWMutex
+	pool []*Worker
 
 	workerPanic         chan string
 	stopRecoveryRoutine chan any
 
-	WorkerQueue chan *Worker
-	Quit        chan bool
+	workerQueue chan *Worker
+	quit        chan bool
 
 	stopOnce sync.Once
 	stopped  bool
@@ -93,7 +94,7 @@ func WithMasterLogger(logger *zap.Logger) MasterOption {
 // before submitting tasks. The asynchronous queue is disabled by default.
 func NewMaster(opts ...MasterOption) (*Master, error) {
 	m := &Master{
-		Quit: make(chan bool), WorkerQueue: make(chan *Worker, maxPoolSize), Pool: make([]*Worker, 0),
+		quit: make(chan bool), workerQueue: make(chan *Worker, maxPoolSize), pool: make([]*Worker, 0),
 		acceptDone: make(chan struct{}), done: make(chan struct{}), queueChanged: make(chan struct{}), poolChanged: make(chan struct{}),
 		recoveryPolicy:    RecoveryPolicy{MaxRestarts: 5, Window: time.Minute},
 		newRecoveryWorker: NewWorker,
@@ -111,7 +112,7 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 		return nil, ErrInvalidRecoveryPolicy
 	}
 	if m.isRecoveryInitialized() {
-		m.backgroundWG.Go(m.RecoveryWorker)
+		m.backgroundWG.Go(m.recoveryLoop)
 	}
 	if m.queueCapacity > 0 {
 		m.backgroundWG.Go(m.runQueue)
@@ -123,8 +124,8 @@ func (m *Master) queueWorker(worker *Worker) {
 	if !m.isInitialized() {
 		return
 	}
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.queueWorkerLocked(worker)
 }
 
@@ -136,20 +137,17 @@ func (m *Master) queueWorkerLocked(worker *Worker) {
 	// without a goroutine. Stale tokens of removed workers can still fill it;
 	// then wait in the background rather than block while m is locked.
 	select {
-	case m.WorkerQueue <- worker:
+	case m.workerQueue <- worker:
 		return
 	default:
 	}
 	m.backgroundWG.Go(func() {
 		select {
-		case m.WorkerQueue <- worker:
-		case <-m.Quit:
+		case m.workerQueue <- worker:
+		case <-m.quit:
 		}
 	})
 }
-
-// Dispatch is an alias for Schedule.
-func (m *Master) Dispatch(task Task) error { return m.Schedule(task) }
 
 // Schedule waits for a worker and then for the task's outcome.
 func (m *Master) Schedule(task Task) error { return m.ScheduleContext(context.Background(), task) }
@@ -169,13 +167,13 @@ func (m *Master) ScheduleResult(ctx context.Context, task Task) Result {
 	if !m.isInitialized() {
 		return Result{Err: ErrMasterNotInitialized}
 	}
-	m.Lock()
+	m.mu.Lock()
 	if err := m.acceptReadyErrorLocked(); err != nil {
-		m.Unlock()
+		m.mu.Unlock()
 		return Result{Err: err}
 	}
 	m.tasksWG.Add(1)
-	m.Unlock()
+	m.mu.Unlock()
 	defer m.tasksWG.Done()
 	request := newTaskRequest(task)
 	w, err := m.dispatch(ctx, request, m.acceptDone)
@@ -209,9 +207,9 @@ func (m *Master) dispatch(ctx context.Context, request *taskRequest, interrupt <
 			return nil, ctx.Err()
 		case <-interrupt:
 			return nil, ErrMasterStopped
-		case <-m.Quit:
+		case <-m.quit:
 			return nil, ErrMasterStopped
-		case w := <-m.WorkerQueue:
+		case w := <-m.workerQueue:
 			if m.isStopped() {
 				return nil, ErrMasterStopped
 			}
@@ -266,8 +264,8 @@ func (m *Master) isStopped() bool {
 	if !m.isInitialized() {
 		return true
 	}
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.stopped
 }
 
@@ -275,7 +273,7 @@ func (m *Master) acceptReadyErrorLocked() error {
 	if m.closing || m.stopped {
 		return ErrMasterStopped
 	}
-	if len(m.Pool) == 0 && !m.workerAdded {
+	if len(m.pool) == 0 && !m.workerAdded {
 		return m.emptyPoolErrorLocked()
 	}
 	return nil
@@ -287,12 +285,12 @@ func (m *Master) dispatchState() (<-chan struct{}, error) {
 	if !m.isInitialized() {
 		return nil, ErrMasterNotInitialized
 	}
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.stopped {
 		return nil, ErrMasterStopped
 	}
-	if len(m.Pool) == 0 && !m.workerAdded {
+	if len(m.pool) == 0 && !m.workerAdded {
 		return nil, m.emptyPoolErrorLocked()
 	}
 	return m.poolChanged, nil
@@ -306,5 +304,5 @@ func (m *Master) emptyPoolErrorLocked() error {
 }
 
 func (m *Master) isInitialized() bool {
-	return m != nil && m.WorkerQueue != nil && m.Quit != nil && m.acceptDone != nil && m.done != nil
+	return m != nil && m.workerQueue != nil && m.quit != nil && m.acceptDone != nil && m.done != nil
 }

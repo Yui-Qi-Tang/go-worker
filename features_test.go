@@ -113,7 +113,7 @@ func TestScheduleContextCanceledBeforeHandoffReturnsWorker(t *testing.T) {
 	w := currentWorker(t, m)
 	gate := newGatedTask(t)
 	first := make(chan error, 1)
-	// Direct Do occupies the worker while it is still available in WorkerQueue.
+	// Direct Do occupies the worker while it is still available in workerQueue.
 	go func() { first <- w.Do(gate) }()
 	awaitSignal(t, gate.entered)
 
@@ -762,3 +762,15 @@ func TestWorkerLogsTaskEventsWhenInfoEnabled(t *testing.T) {
 		}
 	}
 }
+
+type countingTask struct {
+	count *int32
+}
+
+func (t countingTask) Init() error { return nil }
+func (t countingTask) Run() error {
+	atomic.AddInt32(t.count, 1)
+	return nil
+}
+func (t countingTask) Done() error { return nil }
+func (t countingTask) ID() string  { return "counting-task" }

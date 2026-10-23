@@ -24,7 +24,6 @@ const (
 	workerErrInit string = "error-init"
 	workerErrRun  string = "error-run"
 	workerErrDone string = "error-done"
-	workerErrNil  string = "error-nil-task"
 	// panic
 	workerPanic string = "panic"
 )
@@ -54,11 +53,11 @@ var (
 	ErrWorkerNotInitialized error = errors.New("worker is not initialized")
 )
 
-// Worker is the structure for worker
+// Worker executes one task at a time. A Worker belongs to at most one Master.
 type Worker struct {
-	sync.Mutex
-	Task chan Task
-	Name string
+	mu   sync.Mutex
+	task chan *taskRequest
+	name string
 	id   string
 
 	recoveryID string
@@ -72,11 +71,9 @@ type Worker struct {
 	done             chan struct{}
 	finishOnce       sync.Once
 
-	// Recovery TODO: use a special type for this channel, it's between master and worker
-	Recovery chan string
-	Quit     chan any
-
-	status chan string
+	// recovery carries this worker's recovery identity to its master after a panic.
+	recovery chan string
+	quit     chan any
 
 	started  bool
 	stopped  bool
@@ -90,7 +87,7 @@ type Option func(w *Worker)
 // WithName is setup worker name
 func WithName(name string) Option {
 	return func(w *Worker) {
-		w.Name = name
+		w.name = name
 	}
 }
 
@@ -103,17 +100,16 @@ func WithLogger(logger *zap.Logger) Option {
 	}
 }
 
-// WithRecovery sets recovery chan for upstream
-// if no upstream exists, don't create worker with this option
-func WithRecovery(ok bool) Option {
+// withRecovery gives a worker created by a master its recovery channel.
+func withRecovery(ok bool) Option {
 	return func(w *Worker) {
 		if !ok {
-			w.Recovery = nil
+			w.recovery = nil
 			return
 		}
 
-		if w.Recovery == nil {
-			w.Recovery = make(chan string, 1)
+		if w.recovery == nil {
+			w.recovery = make(chan string, 1)
 		}
 	}
 }
@@ -122,14 +118,14 @@ func WithRecovery(ok bool) Option {
 func NewWorker(opts ...Option) (*Worker, error) {
 	name := guuid.New().String()
 	w := &Worker{
-		Name: name, recoveryID: name,
-		Quit: make(chan any), Task: make(chan Task),
-		status: make(chan string, 1), done: make(chan struct{}),
+		name: name, recoveryID: name,
+		quit: make(chan any), task: make(chan *taskRequest),
+		done: make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(w)
 	}
-	if w.Name == "" {
+	if w.name == "" {
 		return nil, ErrWorkerInvalidName
 	}
 	if w.loggerConfigured && w.logger == nil {
@@ -145,7 +141,7 @@ func NewWorker(opts ...Option) (*Worker, error) {
 		}
 		w.logger = logger
 	}
-	w.id = w.Name
+	w.id = w.name
 	return w, nil
 }
 
@@ -159,28 +155,28 @@ func (w *Worker) start() error {
 	if !w.isInitialized() {
 		return ErrWorkerNotInitialized
 	}
-	w.Lock()
+	w.mu.Lock()
 	if !w.isInitialized() {
-		w.Unlock()
+		w.mu.Unlock()
 		return ErrWorkerNotInitialized
 	}
 	if w.stopped {
-		w.Unlock()
+		w.mu.Unlock()
 		return ErrWorkerStopped
 	}
 	if w.started {
-		w.Unlock()
+		w.mu.Unlock()
 		return ErrWorkerAlreadyStarted
 	}
 	w.started = true
-	w.Unlock()
+	w.mu.Unlock()
 
 	go w.run()
 	return nil
 }
 
 func (w *Worker) run() {
-	var activeTask Task
+	var activeTask *taskRequest
 	var result Result
 	var owner *taskMetrics
 	active := false
@@ -196,9 +192,9 @@ func (w *Worker) run() {
 			if cause, ok := reason.(error); ok {
 				result.Cause = cause
 			}
-			w.Lock()
+			w.mu.Lock()
 			w.panicked = true
-			w.Unlock()
+			w.mu.Unlock()
 			w.stop()
 			if active {
 				w.finishTask(owner, result)
@@ -210,24 +206,20 @@ func (w *Worker) run() {
 		w.markStopped()
 	}()
 
-	w.logger.Info(workerEventStart, zap.String("worker", w.Name))
+	w.logger.Info(workerEventStart, zap.String("worker", w.name))
 	for {
 		select {
-		case <-w.Quit:
-			w.logger.Info(workerEventQuit, zap.String("worker", w.Name))
+		case <-w.quit:
+			w.logger.Info(workerEventQuit, zap.String("worker", w.name))
 			if !w.loggerConfigured {
 				_ = w.logger.Sync()
 			}
 			return
-		case task, ok := <-w.Task:
-			if !ok {
-				w.stop()
-				return
-			}
-			w.Lock()
+		case request := <-w.task:
+			w.mu.Lock()
 			if w.stopped {
-				w.Unlock()
-				w.reportTaskResult(task, Result{Err: ErrWorkerStopped})
+				w.mu.Unlock()
+				w.reportTaskResult(request, Result{Err: ErrWorkerStopped})
 				return
 			}
 			owner = w.ownerMetrics
@@ -235,12 +227,12 @@ func (w *Worker) run() {
 			if owner != nil {
 				owner.begin()
 			}
-			w.Unlock()
-			activeTask, active, result = task, true, Result{}
-			w.executeTask(task, &result)
+			w.mu.Unlock()
+			activeTask, active, result = request, true, Result{}
+			w.executeTask(request.Task, &result)
 			w.finishTask(owner, result)
 			active = false
-			w.reportTaskResult(task, result)
+			w.reportTaskResult(request, result)
 			activeTask = nil
 		}
 	}
@@ -250,7 +242,7 @@ func (w *Worker) run() {
 // The original failure is already available through the task result.
 func (w *Worker) logPanic(reason any) {
 	defer func() { _ = recover() }()
-	w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", reason))
+	w.logger.Error(workerPanic, zap.String("worker", w.name), zap.Any("reason", reason))
 	if !w.loggerConfigured {
 		_ = w.logger.Sync()
 	}
@@ -274,20 +266,28 @@ func (w *Worker) stop() {
 	}
 
 	w.stopOnce.Do(func() {
-		w.Lock()
+		w.mu.Lock()
 		w.stopped = true
 		started := w.started
-		close(w.Quit)
-		w.Unlock()
+		close(w.quit)
+		w.mu.Unlock()
 		if !started {
 			w.finishOnce.Do(func() { close(w.done) })
 		}
 	})
 }
 
+// Name returns the worker name set by WithName, or a generated UUID.
+func (w *Worker) Name() string {
+	if w == nil {
+		return ""
+	}
+	return w.name
+}
+
 func (w *Worker) identity() string {
 	if w.id == "" {
-		return w.Name
+		return w.name
 	}
 	return w.id
 }
@@ -300,19 +300,15 @@ func (w *Worker) recoveryIdentity() string {
 }
 
 func (w *Worker) notifyRecovery() {
-	w.Lock()
-	recovery := w.Recovery
-	w.Unlock()
+	w.mu.Lock()
+	recovery := w.recovery
+	w.mu.Unlock()
 	if recovery == nil {
 		return
 	}
 
-	defer func() {
-		// Recovery is exported, so callers can close it. Treat that as recovery disabled.
-		_ = recover()
-	}()
-
-	// Panic status must reach Worker.Do even when recovery already has a pending signal.
+	// Never block a dying worker. A pending signal is enough: the master also
+	// observes each worker's exit.
 	select {
 	case recovery <- w.recoveryIdentity():
 	default:
@@ -320,33 +316,33 @@ func (w *Worker) notifyRecovery() {
 }
 
 func (w *Worker) isStopped() bool {
-	w.Lock()
-	defer w.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	return w.stopped
 }
 
 func (w *Worker) didPanic() bool {
-	w.Lock()
-	defer w.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	return w.panicked
 }
 
 func (w *Worker) isStarted() bool {
-	w.Lock()
-	defer w.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	return w.started && !w.stopped
 }
 
 func (w *Worker) isInitialized() bool {
-	return w != nil && w.Task != nil && w.Quit != nil && w.status != nil && w.logger != nil && w.done != nil
+	return w != nil && w.task != nil && w.quit != nil && w.logger != nil && w.done != nil
 }
 
 func (w *Worker) readyError() error {
 	if !w.isInitialized() {
 		return ErrWorkerNotInitialized
 	}
-	w.Lock()
-	defer w.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	if !w.isInitialized() {
 		return ErrWorkerNotInitialized
@@ -361,9 +357,9 @@ func (w *Worker) readyError() error {
 }
 
 func (w *Worker) markStopped() {
-	w.Lock()
+	w.mu.Lock()
 	w.stopped = true
-	w.Unlock()
+	w.mu.Unlock()
 }
 
 // Wait waits for this worker to exit. It does not initiate shutdown.

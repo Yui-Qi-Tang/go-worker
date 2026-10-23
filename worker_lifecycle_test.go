@@ -29,7 +29,7 @@ func TestMasterDispatchBeforeWorkersStartReturnsError(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- ms.Dispatch(phaseErrorTask{id: "before-start"})
+		done <- ms.Schedule(phaseErrorTask{id: "before-start"})
 	}()
 
 	select {
@@ -47,7 +47,7 @@ func TestMasterDispatchBeforeWorkersStartReturnsError(t *testing.T) {
 
 	done = make(chan error, 1)
 	go func() {
-		done <- ms.Dispatch(phaseErrorTask{id: "after-start"})
+		done <- ms.Schedule(phaseErrorTask{id: "after-start"})
 	}()
 
 	select {

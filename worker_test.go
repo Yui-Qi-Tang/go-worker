@@ -54,49 +54,6 @@ func (tt testTask) Done() error {
 	}[tt]
 }
 
-func TestLowLevelWorker(t *testing.T) {
-
-	testcases := []struct { // task case form
-		task   testTask
-		answer string
-	}{
-		{
-			task:   normal,
-			answer: workerEventDone,
-		},
-		{
-			task:   normalErr,
-			answer: workerErrInit,
-		},
-		{
-			task:   panicErr,
-			answer: workerPanic,
-		},
-	}
-
-	worker, err := NewWorker(WithName("my-worker-internal"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	worker.Start()
-
-	for _, testcase := range testcases {
-
-		go func(task testTask) {
-			worker.Task <- task
-		}(testcase.task)
-
-		workerStatus := worker.waitStatus() // use low-level function
-		if workerStatus != testcase.answer {
-			t.Fatalf("wrong result :%s, expected: %s", workerStatus, testcase.answer)
-		}
-	}
-
-	worker.Stop()
-
-}
-
 func TestWorkerForClient(t *testing.T) {
 
 	testcases := []struct { // task case form

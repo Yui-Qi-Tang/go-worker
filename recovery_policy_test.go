@@ -19,9 +19,9 @@ func waitForRecoveryStats(t *testing.T, m *Master, ready func(RecoveryStats) boo
 	t.Helper()
 	ctx := testContext(t)
 	for {
-		m.RLock()
+		m.mu.RLock()
 		stats, changed := m.recoveryStats, m.poolChanged
-		m.RUnlock()
+		m.mu.RUnlock()
 		if ready(stats) {
 			return stats
 		}
@@ -59,7 +59,7 @@ func TestRecoveryLimitSurvivesReplacementAndSuccessfulTasks(t *testing.T) {
 	if _, err := m.TrySubmit(phaseErrorTask{}); err != ErrRecoveryExhausted {
 		t.Fatalf("admission to exhausted pool: %v", err)
 	}
-	if m.GetWorkers() != 0 {
+	if m.Workers() != 0 {
 		t.Fatal("exhausted worker remained registered")
 	}
 	// Manual replacement starts a new slot budget and preserves failure history.
@@ -89,22 +89,22 @@ func TestRecoveryLimitSurvivesReplacementAndSuccessfulTasks(t *testing.T) {
 
 func TestRecoveryLimitIsPerSlot(t *testing.T) {
 	m := newFeatureMaster(t, 2, WithWorkerRecovery(true), recoveryLimit(1))
-	m.RLock()
-	first, second := m.Pool[0], m.Pool[1]
-	m.RUnlock()
+	m.mu.RLock()
+	first, second := m.pool[0], m.pool[1]
+	m.mu.RUnlock()
 	panicTask := functionTask{run: func() error { panic("one slot") }}
 	if err := first.Do(panicTask); err != ErrWorkerPanic {
 		t.Fatal(err)
 	}
 	m.recoverWorker(first.recoveryIdentity())
 	var replacement *Worker
-	m.RLock()
-	for _, w := range m.Pool {
+	m.mu.RLock()
+	for _, w := range m.pool {
 		if w.identity() == first.identity() {
 			replacement = w
 		}
 	}
-	m.RUnlock()
+	m.mu.RUnlock()
 	if replacement == nil {
 		t.Fatal("missing replacement")
 	}
@@ -197,7 +197,7 @@ func TestRecoveryFailureKeepsHealthySlotsAvailable(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.recoverWorker(old.recoveryIdentity())
-	if m.GetWorkers() != 1 {
+	if m.Workers() != 1 {
 		t.Fatal("healthy slot was removed")
 	}
 	if err := m.ScheduleContext(testContext(t), phaseErrorTask{}); err != nil {

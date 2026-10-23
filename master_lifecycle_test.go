@@ -22,7 +22,7 @@ func TestMasterDispatchAfterStopReturnsError(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- ms.Dispatch(phaseErrorTask{id: "after-stop"})
+		done <- ms.Schedule(phaseErrorTask{id: "after-stop"})
 	}()
 
 	select {
