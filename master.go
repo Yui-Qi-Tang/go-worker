@@ -44,13 +44,10 @@ type Master struct {
 	queue  chan *taskRequest
 
 	// Producers hold admit's read lock while checking acceptDone and sending;
-	// shutdown takes the write lock before it closes the queue.
-	admit sync.RWMutex
-	// acceptDone is closed when the master stops accepting work; aborted is
-	// set when Stop abandons queued work. Workers read both to decide what
-	// to do with each task.
+	// shutdown takes the write lock before it closes the queue. Workers learn
+	// about shutdown from control messages instead.
+	admit      sync.RWMutex
 	acceptDone chan struct{}
-	aborted    atomic.Bool
 
 	// poolDown holds the error returned while no worker can run.
 	poolDown atomic.Pointer[poolFailure]
@@ -62,6 +59,7 @@ type Master struct {
 	mu           sync.Mutex
 	workers      map[*Worker]struct{}
 	closing      bool
+	aborting     bool
 	queueDrained bool
 	// lost counts panicked workers not yet replaced. While it is positive,
 	// every new worker is a replacement and spends the restart budget.

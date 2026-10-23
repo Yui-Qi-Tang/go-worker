@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"sync"
-	"time"
 	"uuid"
 )
 
@@ -77,7 +76,20 @@ type Worker struct {
 	cancel   context.CancelFunc
 	canceled bool
 
+	// quit closes when a standalone worker stops accepting tasks, so callers
+	// waiting to hand one over give up.
 	quit chan any
+
+	// The worker goroutine reads tasks from inbox (its own task channel, or
+	// the master's direct channel) and, in a pool, from backlog (the master's
+	// queue). ctrl carries at most one drain and one abort message; initial
+	// is the state the goroutine starts in.
+	inbox     <-chan *taskRequest
+	backlog   <-chan *taskRequest
+	ctrl      chan control
+	initial   workerState
+	drainOnce sync.Once
+	abortOnce sync.Once
 
 	started  bool
 	stopped  bool
@@ -106,10 +118,11 @@ func WithLogger(logger *slog.Logger) WorkerOption {
 
 // NewWorker returns an initialized, unstarted worker.
 func NewWorker(opts ...WorkerOption) (*Worker, error) {
+	task := make(chan *taskRequest)
 	w := &Worker{
 		name: uuid.New().String(),
-		quit: make(chan any), task: make(chan *taskRequest),
-		done: make(chan struct{}),
+		quit: make(chan any), task: task, inbox: task,
+		ctrl: make(chan control, 2), done: make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(w)
@@ -132,7 +145,8 @@ func newPoolWorker(m *Master) (*Worker, error) {
 	w := &Worker{
 		name: uuid.New().String(), owner: m,
 		quit: make(chan any), task: make(chan *taskRequest),
-		done:   make(chan struct{}),
+		inbox: m.direct, backlog: m.queue,
+		ctrl: make(chan control, 2), done: make(chan struct{}),
 		logger: m.logger,
 	}
 	return w, nil
@@ -189,94 +203,8 @@ func (w *Worker) run() {
 	defer w.recoverRun(&st)
 
 	w.logger.Info(workerEventStart, "worker", w.name)
-	if w.owner != nil {
-		w.servePool(ctx, &st)
-		return
-	}
-	for {
-		select {
-		case <-w.quit:
-			w.logger.Info(workerEventQuit, "worker", w.name)
-			return
-		case request := <-w.task:
-			if w.isStopped() {
-				request.reply(Result{Err: ErrWorkerStopped})
-				return
-			}
-			w.execute(ctx, &st, request)
-		}
-	}
-}
-
-// servePool is a pool worker's loop. The worker decides what to do with each
-// request from the master's state: it runs tasks while the master accepts
-// work, keeps running queued tasks while the master drains, and answers them
-// with ErrMasterStopped once the master aborts.
-func (w *Worker) servePool(ctx context.Context, st *runState) {
-	m := w.owner
-	// Only a scaling pool tracks idle workers and retires them.
-	var idle *time.Timer
-	var idleC <-chan time.Time
-	if m.scales() {
-		idle = time.NewTimer(m.idleTimeout)
-		defer idle.Stop()
-		idleC = idle.C
-	}
-	setIdle := func(delta int32) {
-		if idle != nil {
-			m.idle.Add(delta)
-		}
-	}
-	for {
-		setIdle(1)
-		var request *taskRequest
-		select {
-		case request = <-m.direct:
-		case r, ok := <-m.queue:
-			if !ok {
-				setIdle(-1)
-				return
-			}
-			request = r
-		case <-m.acceptDone:
-			setIdle(-1)
-			// Draining: nothing new arrives on direct, and the queue is
-			// closed once every producer has finished.
-			if m.queue == nil {
-				return
-			}
-			for request := range m.queue {
-				w.serve(ctx, st, request)
-			}
-			return
-		case <-idleC:
-			setIdle(-1)
-			if m.retire(w) {
-				return
-			}
-			idle.Reset(m.idleTimeout)
-			continue
-		}
-		setIdle(-1)
-		if idle != nil && len(m.queue) > 0 {
-			// A backlog remains: add a worker even if no new task arrives.
-			// grow's error reports a pool with no workers, which cannot be
-			// true while this worker runs, so it is ignored.
-			_ = m.grow(len(m.queue))
-		}
-		w.serve(ctx, st, request)
-		if idle != nil {
-			idle.Reset(m.idleTimeout)
-		}
-	}
-}
-
-func (w *Worker) serve(ctx context.Context, st *runState, request *taskRequest) {
-	if w.owner.aborted.Load() {
-		request.reply(Result{Err: ErrMasterStopped})
-		return
-	}
-	w.execute(ctx, st, request)
+	w.loop(ctx, &st)
+	w.logger.Info(workerEventQuit, "worker", w.name)
 }
 
 func (w *Worker) execute(ctx context.Context, st *runState, request *taskRequest) {
@@ -346,8 +274,17 @@ func (w *Worker) Stop() {
 		return
 	}
 	w.stop()
+	w.requestAbort()
 	w.cancelTask()
 }
+
+// requestDrain asks the worker goroutine to finish its backlog and exit.
+// Each request is sent at most once, so the two-slot ctrl never blocks.
+func (w *Worker) requestDrain() { w.drainOnce.Do(func() { w.ctrl <- controlDrain }) }
+
+// requestAbort asks the worker goroutine to answer its backlog without
+// running it and exit.
+func (w *Worker) requestAbort() { w.abortOnce.Do(func() { w.ctrl <- controlAbort }) }
 
 // cancelTask cancels the context of the running task, or of the next one
 // if the worker goroutine has not set its context up yet.
@@ -373,6 +310,7 @@ func (w *Worker) stop() {
 		started := w.started
 		close(w.quit)
 		w.mu.Unlock()
+		w.requestDrain()
 		if !started {
 			w.finishOnce.Do(func() { close(w.done) })
 		}
@@ -387,14 +325,8 @@ func (w *Worker) Name() string {
 	return w.name
 }
 
-func (w *Worker) isStopped() bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.stopped
-}
-
 func (w *Worker) isInitialized() bool {
-	return w != nil && w.task != nil && w.quit != nil && w.logger != nil && w.done != nil
+	return w != nil && w.task != nil && w.quit != nil && w.ctrl != nil && w.logger != nil && w.done != nil
 }
 
 func (w *Worker) readyError() error {

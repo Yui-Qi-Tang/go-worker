@@ -1,0 +1,13 @@
+before start { 6.04 6.93 7.64 }
+after start { 6.04 6.93 7.64 }
+shared start { 5.96 6.90 7.62 }
+shared start { 5.96 6.90 7.62 }
+after start { 5.72 6.84 7.60 }
+before start { 5.72 6.84 7.60 }
+before start { 5.42 6.76 7.56 }
+after start { 5.42 6.76 7.56 }
+shared start { 5.42 6.76 7.56 }
+shared start { 5.15 6.68 7.53 }
+after start { 5.15 6.68 7.53 }
+before start { 4.97 6.62 7.50 }
+end { 4.97 6.62 7.50 }

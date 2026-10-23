@@ -33,25 +33,27 @@ func (m *Master) Wait(ctx context.Context) error {
 	return waitDone(ctx, m.done)
 }
 
-// beginShutdown moves the pool to draining, or to aborting when abort is set.
-// Workers observe the change through acceptDone and aborted.
+// beginShutdown stops admission and tells every worker to drain, or to abort
+// when abort is set. Workers started later begin in the matching state.
 func (m *Master) beginShutdown(abort bool) {
 	m.mu.Lock()
 	first := !m.closing
 	m.closing = true
+	startAbort := abort && !m.aborting
+	m.aborting = m.aborting || abort
 	if first {
 		close(m.acceptDone)
+		for w := range m.workers {
+			w.requestDrain()
+		}
 	}
-	startAbort := abort && !m.aborted.Load()
 	if m.healTimer != nil {
 		m.healTimer.Stop()
 		m.healTimer = nil
 	}
 	if startAbort {
-		// Set before canceling, so a worker that sees its task canceled also
-		// sees the abort when it takes the next task.
-		m.aborted.Store(true)
 		for w := range m.workers {
+			w.requestAbort()
 			w.cancelTask()
 		}
 	}

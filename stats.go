@@ -84,7 +84,7 @@ func (m *Master) Stats() MasterStats {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	stopped := m.aborted.Load()
+	stopped := m.aborting
 	select {
 	case <-m.done:
 		stopped = true

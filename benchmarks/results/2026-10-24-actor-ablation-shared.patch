@@ -1,0 +1,18 @@
+--- after/worker_state.go	2026-10-24 01:57:47
++++ shared/worker_state.go	2026-10-24 02:14:57
+@@ -75,7 +75,15 @@
+ 			w.owner.idle.Add(-1)
+ 		}
+ 	}
++	// Ablation: also select on the master's shared acceptDone channel.
++	var shared <-chan struct{}
++	if w.owner != nil {
++		shared = w.owner.acceptDone
++	}
+ 	select {
++	case <-shared:
++		notIdle()
++		return stateDraining
+ 	case c := <-w.ctrl:
+ 		notIdle()
+ 		return stateServing.next(c)

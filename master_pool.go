@@ -18,6 +18,14 @@ func (m *Master) spawnLocked() error {
 	}
 	w.ownerMetrics = &m.metrics
 	w.started = true
+	// A worker started during shutdown, such as a replacement, would miss
+	// the control messages already sent to the others.
+	switch {
+	case m.aborting:
+		w.initial = stateAborting
+	case m.closing:
+		w.initial = stateDraining
+	}
 	m.workers[w] = struct{}{}
 	m.live.Store(int32(len(m.workers)))
 	// The caller's worker, if any, is still counted, so running never reaches
@@ -79,7 +87,7 @@ func (m *Master) workerExited(w *Worker, panicked bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.removeLocked(w)
-	if panicked && !m.aborted.Load() {
+	if panicked && !m.aborting {
 		m.lost++
 		m.restoreLocked(w.name)
 	}

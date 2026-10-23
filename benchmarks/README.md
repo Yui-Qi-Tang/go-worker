@@ -65,3 +65,5 @@ source hashes and host details.
   workers taking tasks directly from the master.
 - [2026-10-24 dispatcher removal](results/2026-10-24-dispatch.md): go-worker only,
   develop against each step and against an autoscaling pool.
+- [2026-10-24 actor workers](results/2026-10-24-actor.md): ablation of the shared
+  channel, CPU profiles, and all engines at `d810da1`; recorded on a loaded host.
