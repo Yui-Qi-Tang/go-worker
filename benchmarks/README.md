@@ -1,75 +1,37 @@
 # Worker pool benchmarks
 
-This separate module pins comparison libraries without adding them to the
-production module. It imports the local `go-worker` checkout through `replace`.
+This separate module compares go-worker with other pools without adding them to
+the production module. It imports the local checkout through `replace`.
 
-## Frozen baseline protocol — 2026-10-04
+## What it measures
 
-Question: what is the time and allocation cost per completed task for each
-pool's native API under the same successful workload and concurrency limit?
-This establishes a baseline; it does not test a proposed optimization.
+Time and allocations per completed task for each pool's native API, under the
+same successful workload and worker count. One operation is one completed task;
+`ns/op` is batch time per task, including pool construction and draining, not
+task latency.
 
-- Production baseline: commit `cb271c92cd139234037833562ea94ca2b49e521a`.
-- Go 1.27.1; `GOMAXPROCS=8`; one submitting goroutine; 1 or 8 workers.
-- Engines: a minimal channel pool, go-worker, ants v2.12.1, pond v2.7.2.
-- Pending queue capacity: 64 for channel/go-worker/pond. ants uses direct
-  blocking handoff without a pending-task queue. Idle purging is disabled for
-  ants. go-worker uses a no-op logger and its default disabled replacement policy.
-- No task errors, panics, cancellation, retries, or nested submissions.
-- Workloads and fixed task counts per sample:
+| Setting | Value |
+| --- | --- |
+| Engines | minimal channel pool, go-worker, ants, pond (versions in `go.mod`) |
+| Workers | 1 or 8, one submitting goroutine, `GOMAXPROCS=8` |
+| Pending queue | 64 for channel, go-worker, and pond; ants hands off directly |
+| go-worker setup | `Submit`/`Shutdown`, no-op logger, recovery disabled |
 
-  | Workload | Task body | Tasks/sample | Samples/case |
-  | --- | --- | ---: | ---: |
-  | Noop | Return a constant | 100,000 | 5 |
-  | SHA2564KiB | SHA-256 of the same deterministic 4 KiB byte array | 10,000 | 5 |
-  | Wait100us | `time.Sleep(100*time.Microsecond)` | 1,000 | 5 |
+| Workload | Task body | Tasks per sample |
+| --- | --- | ---: |
+| Noop | Return a constant | 100,000 |
+| SHA2564KiB | SHA-256 of a fixed 4 KiB array | 10,000 |
+| Wait100us | `time.Sleep(100*time.Microsecond)` | 1,000 |
 
-- Each task contributes to the same atomic completion checksum. SHA-256 results
-  contribute to this checksum so the compiler cannot discard the work. Every
-  sample verifies the checksum after all workers finish.
-- Timing and allocation counters include construction, startup, native
-  submission, task execution, and draining/closing one pool per sample.
-  Benchmark harness fixture creation and checksum validation are excluded.
-- Submitters use the native API: go-worker `Submit`/`Shutdown`, ants
-  `Submit`/`ReleaseContext`, pond `Submit`/`StopAndWait`, channel send/close/wait.
-  Returned per-task futures are not individually observed; the batch is drained.
-- Primary measurements: `ns/op`, `tasks/s`, `B/op`, and `allocs/op`. One operation
-  is one completed task. `ns/op` is amortized batch time, not task latency or p99.
-- Completion criterion: all 24 cases complete their fixed task counts, all
-  checksum checks pass, and all five raw samples are retained. There is no
-  performance pass/fail threshold.
-
-The native APIs provide different guarantees. go-worker executes Task phases,
-builds structured results, logs to a no-op logger, records metrics, and returns
-futures; the channel baseline supplies none of these. This comparison measures
-the cost of those native configurations, not identical internal implementations.
-`Wait100us` is simulated waiting, not real I/O; timer resolution affects it.
-Fixed engine order and host scheduling/thermal conditions can affect samples.
-The shared atomic checksum can create contention, especially for Noop with eight
-workers. Its cost depends on scheduling and cannot be subtracted as a constant
-to infer pure pool overhead. Pool startup and shutdown are amortized over each
-fixed batch; these figures do not describe a long-lived pool's steady state.
-Different batch sizes also limit comparisons across workloads.
-No claim about production reliability, panic recovery, peak retained memory, or
-individual task latency follows from these measurements.
-
-## Protocol revision — 2026-10-23
-
-The 2026-10-23 record repeats the frozen protocol with these version changes only:
-
-- Go 1.27.3; pond v2.7.3. ants remains v2.12.1.
-- Production commit `cc9988890e32464a09486ddb84c7378411a165e4`, with zap v1.28.0
-  and uuid v1.6.0.
-
-These are the versions pinned by the current `go.mod` files. Differences from
-the 2026-10-04 record combine production changes, version changes, and host
-conditions; for example, Wait100us shifted for every engine, including the
-channel baseline. The [dispatch path record](results/2026-10-23-hotpath.md)
-measures each production change separately, all in one session.
+Every task adds to a shared atomic checksum, which each sample verifies. The
+engines offer different guarantees: go-worker runs Task phases, builds results,
+records metrics, and returns futures, while the channel baseline does none of
+these. The figures compare those native configurations, not equivalent
+implementations.
 
 ## Run
 
-From this directory, install the pinned dependencies with `go mod tidy`, then:
+From this directory:
 
 ```sh
 go test -run '^$' -bench '^BenchmarkPool/Noop/' -benchmem -benchtime=100000x -count=5 -cpu=8 -timeout=10m
@@ -77,28 +39,25 @@ go test -run '^$' -bench '^BenchmarkPool/SHA2564KiB/' -benchmem -benchtime=10000
 go test -run '^$' -bench '^BenchmarkPool/Wait100us/' -benchmem -benchtime=1000x -count=5 -cpu=8 -timeout=10m
 ```
 
-For a small correctness/race check of the harness:
+Check the harness itself under the race detector:
 
 ```sh
 go test -race -run '^$' -bench '^BenchmarkPool$' -benchtime=100x -cpu=8 -timeout=2m
 ```
 
-Keep raw output and environment metadata in `results/` before interpreting
-median measurements. See each recorded run for its source hashes and host.
-Generate a record's summary from its raw runs, for example:
+Summarize a record's raw runs:
 
 ```sh
 python3 summarize.py --date 2026-10-23 --go "Go 1.27.3" --commit cc99888 \
   results/2026-10-23-Noop.txt results/2026-10-23-SHA2564KiB.txt results/2026-10-23-Wait100us.txt
 ```
 
-## Recorded baselines
+## Records
 
-- [2026-10-04 measurements](results/2026-10-04-summary.md): frozen protocol,
-  Go 1.27.1, production commit `cb271c9`.
-- [2026-10-23 measurements](results/2026-10-23-summary.md): protocol revision
-  above, production commit `cc99888`.
-- [2026-10-23 dispatch path record](results/2026-10-23-hotpath.md): go-worker
-  only, one step per production change.
+Each record in `results/` keeps all raw samples and an environment file with
+source hashes and host details.
 
-Each record includes all five samples per case and the environment/source hashes.
+- [2026-10-04](results/2026-10-04-summary.md): Go 1.27.1, pond v2.7.2, commit `cb271c9`.
+- [2026-10-23](results/2026-10-23-summary.md): Go 1.27.3, pond v2.7.3, commit `cc99888`.
+- [2026-10-23 dispatch path](results/2026-10-23-hotpath.md): go-worker only,
+  one step per dispatch change.
