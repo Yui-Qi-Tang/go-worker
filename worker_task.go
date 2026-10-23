@@ -8,6 +8,10 @@ import (
 type taskRequest struct {
 	Task
 	result chan Result
+	// An async request completes future on the worker goroutine instead of
+	// sending on result, so no goroutine has to wait for it.
+	master *Master
+	future *Future
 }
 
 func newTaskRequest(task Task) *taskRequest {
@@ -57,6 +61,10 @@ func (w *Worker) waitStatus() string { return <-w.status }
 
 func (w *Worker) reportTaskResult(task Task, result Result) {
 	if request, ok := task.(*taskRequest); ok {
+		if request.future != nil {
+			request.master.completeAsync(w, request.future, result)
+			return
+		}
 		request.result <- result
 		return
 	}
@@ -110,18 +118,16 @@ func (w *Worker) sendTaskContext(ctx context.Context, task Task, interrupt <-cha
 	}
 }
 
-func (w *Worker) prepareTask(ctx context.Context, task Task, interrupt <-chan struct{}) (*taskRequest, error) {
+// prepareTask hands request to the worker. A failed handoff leaves request
+// unsent, so the caller may offer it to another worker.
+func (w *Worker) prepareTask(ctx context.Context, request *taskRequest, interrupt <-chan struct{}) error {
 	if err := w.readyError(); err != nil {
-		return nil, err
+		return err
 	}
-	if isNilTask(task) {
-		return nil, ErrWorkerNilTask
+	if isNilTask(request.Task) {
+		return ErrWorkerNilTask
 	}
-	request := newTaskRequest(task)
-	if err := w.sendTaskContext(ctx, request, interrupt); err != nil {
-		return nil, err
-	}
-	return request, nil
+	return w.sendTaskContext(ctx, request, interrupt)
 }
 
 // Do processes a task and preserves the package's phase sentinel errors.
@@ -134,8 +140,8 @@ func (w *Worker) DoContext(ctx context.Context, task Task) error { return w.DoRe
 
 // DoResult is DoContext with the original failure and panic details retained.
 func (w *Worker) DoResult(ctx context.Context, task Task) Result {
-	request, err := w.prepareTask(ctx, task, nil)
-	if err != nil {
+	request := newTaskRequest(task)
+	if err := w.prepareTask(ctx, request, nil); err != nil {
 		return Result{Err: err}
 	}
 	return <-request.result

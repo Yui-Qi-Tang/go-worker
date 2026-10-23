@@ -34,7 +34,7 @@ type Master struct {
 	logger            *zap.Logger
 	loggerConfigured  bool
 	queueCapacity     int
-	pending           []*submission
+	pending           []*taskRequest
 	queueChanged      chan struct{}
 	poolChanged       chan struct{}
 	poolErr           error
@@ -176,49 +176,50 @@ func (m *Master) ScheduleResult(ctx context.Context, task Task) Result {
 	m.tasksWG.Add(1)
 	m.Unlock()
 	defer m.tasksWG.Done()
-	w, request, err := m.dispatch(ctx, task, m.acceptDone)
+	request := newTaskRequest(task)
+	w, err := m.dispatch(ctx, request, m.acceptDone)
 	if err != nil {
 		return Result{Err: err}
 	}
-	return m.finishDispatch(w, request)
+	return m.releaseResult(w, <-request.result)
 }
 
 // dispatch returns only after a handoff, without waiting for execution. The
 // async dispatcher uses a nil interrupt so graceful shutdown can drain its
 // already accepted tasks. Quit still aborts pending handoffs on Stop.
-func (m *Master) dispatch(ctx context.Context, task Task, interrupt <-chan struct{}) (*Worker, *taskRequest, error) {
+func (m *Master) dispatch(ctx context.Context, request *taskRequest, interrupt <-chan struct{}) (*Worker, error) {
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		select {
 		case <-interrupt:
-			return nil, nil, ErrMasterStopped
+			return nil, ErrMasterStopped
 		default:
 		}
 		changed, err := m.dispatchState()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		select {
 		case <-changed:
 			continue
 		case <-ctx.Done():
-			return nil, nil, ctx.Err()
+			return nil, ctx.Err()
 		case <-interrupt:
-			return nil, nil, ErrMasterStopped
+			return nil, ErrMasterStopped
 		case <-m.Quit:
-			return nil, nil, ErrMasterStopped
+			return nil, ErrMasterStopped
 		case w := <-m.WorkerQueue:
 			if m.isStopped() {
-				return nil, nil, ErrMasterStopped
+				return nil, ErrMasterStopped
 			}
 			if !m.hasWorker(w) {
 				continue
 			}
-			request, err := w.prepareTask(ctx, task, interrupt)
+			err := w.prepareTask(ctx, request, interrupt)
 			if err == nil {
-				return w, request, nil
+				return w, nil
 			}
 			m.releaseWorker(w, err)
 			if err == ErrWorkerStopped && m.isStopped() {
@@ -228,20 +229,20 @@ func (m *Master) dispatch(ctx context.Context, task Task, interrupt <-chan struc
 				// A queued token can outlive a worker that panicked before
 				// handoff. Report the replacement outcome, or try a live slot.
 				if _, readyErr := m.dispatchState(); readyErr != nil {
-					return nil, nil, readyErr
+					return nil, readyErr
 				}
 				continue
 			}
 			if err == ErrWorkerNotStarted && m.hasStartedWorker() {
 				continue
 			}
-			return nil, nil, err
+			return nil, err
 		}
 	}
 }
 
-func (m *Master) finishDispatch(w *Worker, request *taskRequest) Result {
-	result := <-request.result
+// releaseResult returns w to the pool, or replaces it, after its task ended.
+func (m *Master) releaseResult(w *Worker, result Result) Result {
 	m.releaseWorker(w, result.Err)
 	if result.Err == ErrWorkerStopped && m.isStopped() {
 		result.Err = ErrMasterStopped
