@@ -82,11 +82,12 @@ type poolFailure struct{ err error }
 // MasterOption configures a Master in NewMaster.
 type MasterOption func(m *Master)
 
-// WithWorkers sets the pool size. NewMaster starts minWorkers. When a task
-// arrives and no worker is idle, the pool adds one, up to maxWorkers; a worker
-// idle for the idle timeout retires while more than minWorkers run. Equal
-// counts give a fixed pool with no scaling cost. The default is a fixed pool
-// of runtime.GOMAXPROCS(0) workers, capped at 1024.
+// WithWorkers sets the pool size. NewMaster starts minWorkers. The pool adds a
+// worker, up to maxWorkers, when more tasks wait than workers are idle: when a
+// task is admitted, or when a worker takes a task and leaves a backlog. A
+// worker idle for the idle timeout retires while more than minWorkers run.
+// Equal counts give a fixed pool with no scaling cost. The default is a fixed
+// pool of runtime.GOMAXPROCS(0) workers, capped at 1024.
 func WithWorkers(minWorkers, maxWorkers int) MasterOption {
 	return func(m *Master) { m.minWorkers, m.maxWorkers = minWorkers, maxWorkers }
 }

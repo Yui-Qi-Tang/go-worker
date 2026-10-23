@@ -68,9 +68,11 @@ type Worker struct {
 	logger           *slog.Logger
 	loggerConfigured bool
 	metrics          taskMetrics
-	ownerMetrics     *taskMetrics
-	done             chan struct{}
-	finishOnce       sync.Once
+	// ownerMetrics is the master's counters; it is set before a pool worker
+	// starts and never changes.
+	ownerMetrics *taskMetrics
+	done         chan struct{}
+	finishOnce   sync.Once
 	// cancel cancels the context the worker goroutine passes to task phases;
 	// canceled records a cancel requested before the goroutine set it.
 	cancel   context.CancelFunc
@@ -172,7 +174,6 @@ func (w *Worker) start() error {
 type runState struct {
 	request *taskRequest
 	result  Result
-	owner   *taskMetrics
 	active  bool
 }
 
@@ -264,6 +265,8 @@ func (w *Worker) servePool(ctx context.Context, st *runState) {
 		setIdle(-1)
 		if idle != nil && len(m.queue) > 0 {
 			// A backlog remains: add a worker even if no new task arrives.
+			// grow's error reports a pool with no workers, which cannot be
+			// true while this worker runs, so it is ignored.
 			_ = m.grow(len(m.queue))
 		}
 		w.serve(ctx, st, request)
@@ -282,16 +285,13 @@ func (w *Worker) serve(ctx context.Context, st *runState, request *taskRequest) 
 }
 
 func (w *Worker) execute(ctx context.Context, st *runState, request *taskRequest) {
-	w.mu.Lock()
-	st.owner = w.ownerMetrics
-	w.mu.Unlock()
 	w.metrics.begin()
-	if st.owner != nil {
-		st.owner.begin()
+	if w.ownerMetrics != nil {
+		w.ownerMetrics.begin()
 	}
 	st.request, st.active, st.result = request, true, Result{}
 	w.executeTask(ctx, request.Task, &st.result)
-	w.finishTask(st.owner, st.result)
+	w.finishTask(st.result)
 	st.active = false
 	w.reportTaskResult(request, st.result)
 	st.request = nil
@@ -317,7 +317,7 @@ func (w *Worker) recoverRun(st *runState) {
 	}
 	w.markStopped()
 	if st.active {
-		w.finishTask(st.owner, st.result)
+		w.finishTask(st.result)
 	}
 	if w.owner != nil {
 		w.owner.workerExited(w, panicked)
@@ -337,10 +337,10 @@ func (w *Worker) logPanic(reason any) {
 	w.logger.Error(workerPanic, "worker", w.name, "reason", reason)
 }
 
-func (w *Worker) finishTask(owner *taskMetrics, result Result) {
+func (w *Worker) finishTask(result Result) {
 	w.metrics.finish(result)
-	if owner != nil {
-		owner.finish(result)
+	if w.ownerMetrics != nil {
+		w.ownerMetrics.finish(result)
 	}
 }
 
