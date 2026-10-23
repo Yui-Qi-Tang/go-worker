@@ -36,25 +36,21 @@ func (t recoveryTask) ID() string {
 }
 
 func TestMasterRecoveryStartsReplacementWorker(t *testing.T) {
-	ms, err := NewMaster(WithWorkerRecovery(true))
+	ms, err := NewMaster(WithWorkers(1, 1))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer ms.Stop()
-
-	if err := ms.AddWorkers(1); err != nil {
-		t.Fatal(err)
-	}
-	if err := ms.WakeAllWorkersUp(); err != nil {
-		t.Fatal(err)
-	}
 
 	for range 2 {
 		oldWorker := currentWorker(t, ms)
 		if err := ms.Schedule(recoveryTask{id: "panic-recovery", panicInInit: true}); err != ErrWorkerPanic {
 			t.Fatalf("panic task error = %v, want %v", err, ErrWorkerPanic)
 		}
-		waitForWorkerReplacement(t, ms, oldWorker)
+		// The replacement starts before the panic result is reported.
+		if replacement := currentWorker(t, ms); replacement == oldWorker {
+			t.Fatal("panicked worker is still in the pool")
+		}
 
 		var runs int32
 		if err := scheduleWithTimeout(t, ms, recoveryTask{id: "normal-after-recovery", runs: &runs}); err != nil {
@@ -62,38 +58,6 @@ func TestMasterRecoveryStartsReplacementWorker(t *testing.T) {
 		}
 		if got := atomic.LoadInt32(&runs); got != 1 {
 			t.Fatalf("replacement worker runs = %d, want 1", got)
-		}
-	}
-}
-
-func currentWorker(t *testing.T, ms *Master) *Worker {
-	t.Helper()
-
-	ms.mu.RLock()
-	defer ms.mu.RUnlock()
-
-	if len(ms.pool) == 0 {
-		t.Fatal("master has no workers")
-	}
-
-	return ms.pool[0]
-}
-
-func waitForWorkerReplacement(t *testing.T, ms *Master, oldWorker *Worker) {
-	t.Helper()
-
-	deadline := time.After(time.Second)
-	tick := time.NewTicker(time.Millisecond)
-	defer tick.Stop()
-
-	for {
-		select {
-		case <-deadline:
-			t.Fatalf("timed out waiting for worker %p to be replaced", oldWorker)
-		case <-tick.C:
-			if !workerInPool(ms, oldWorker) {
-				return
-			}
 		}
 	}
 }

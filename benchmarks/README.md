@@ -15,7 +15,7 @@ task latency.
 | Engines | minimal channel pool, go-worker, ants, pond (versions in `go.mod`) |
 | Workers | 1 or 8, one submitting goroutine, `GOMAXPROCS=8` |
 | Pending queue | 64 for channel, go-worker, and pond; ants hands off directly |
-| go-worker setup | `Submit`/`Shutdown`, no-op logger, recovery disabled |
+| go-worker setup | fixed pool (`WithWorkers(n, n)`), `Submit`/`Shutdown`, no-op logger |
 
 | Workload | Task body | Tasks per sample |
 | --- | --- | ---: |
@@ -61,3 +61,7 @@ source hashes and host details.
 - [2026-10-23](results/2026-10-23-summary.md): Go 1.27.3, pond v2.7.3, commit `cc99888`.
 - [2026-10-23 dispatch path](results/2026-10-23-hotpath.md): go-worker only,
   one step per dispatch change.
+- [2026-10-24](results/2026-10-24-summary.md): Go 1.27.3, pond v2.7.3, commit `3f00498`,
+  workers taking tasks directly from the master.
+- [2026-10-24 dispatcher removal](results/2026-10-24-dispatch.md): go-worker only,
+  develop against each step and against an autoscaling pool.

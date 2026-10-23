@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,245 +16,153 @@ func recoveryLimit(limit int) MasterOption {
 	return WithRecoveryPolicy(RecoveryPolicy{MaxRestarts: limit, Window: time.Minute})
 }
 
-func waitForRecoveryStats(t *testing.T, m *Master, ready func(RecoveryStats) bool) RecoveryStats {
+// waitFor polls a condition that becomes true asynchronously, such as a
+// replacement started by a timer.
+func waitFor(t *testing.T, what string, ready func() bool) {
 	t.Helper()
 	ctx := testContext(t)
-	for {
-		m.mu.RLock()
-		stats, changed := m.recoveryStats, m.poolChanged
-		m.mu.RUnlock()
-		if ready(stats) {
-			return stats
-		}
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for !ready() {
 		select {
-		case <-changed:
+		case <-tick.C:
 		case <-ctx.Done():
-			t.Fatalf("recovery did not finish: %+v", stats)
+			t.Fatalf("timed out waiting for %s", what)
 		}
 	}
 }
 
-func TestRecoveryLimitSurvivesReplacementAndSuccessfulTasks(t *testing.T) {
-	m := newFeatureMaster(t, 1, WithWorkerRecovery(true), recoveryLimit(2))
-	original := currentWorker(t, m)
-	for attempt := range 3 {
-		if err := m.ScheduleContext(testContext(t), functionTask{run: func() error { panic("broken task") }}); err != ErrWorkerPanic {
-			t.Fatalf("panic %d: %v", attempt, err)
+func waitForRecoveryStats(t *testing.T, m *Master, ready func(RecoveryStats) bool) RecoveryStats {
+	t.Helper()
+	var stats RecoveryStats
+	waitFor(t, "recovery stats", func() bool { stats = m.RecoveryStats(); return ready(stats) })
+	return stats
+}
+
+var panicTask = functionTask{run: func() error { panic("task failure") }}
+
+func TestRecoveryLimitIsPoolWide(t *testing.T) {
+	m := newFeatureMaster(t, 2, recoveryLimit(2))
+	for range 2 {
+		if err := m.Schedule(panicTask); err != ErrWorkerPanic {
+			t.Fatal(err)
 		}
-		if attempt < 2 {
-			if err := m.ScheduleContext(testContext(t), phaseErrorTask{}); err != nil {
-				t.Fatalf("successful task %d: %v", attempt, err)
-			}
-		}
+		waitFor(t, "replacement", func() bool { return m.Workers() == 2 })
 	}
-	stats := m.RecoveryStats()
-	if stats.Attempts != 2 || stats.Started != 2 || stats.Failed != 0 || stats.Exhausted != 1 {
+	if err := m.Schedule(panicTask); err != ErrWorkerPanic {
+		t.Fatal(err)
+	}
+	stats := waitForRecoveryStats(t, m, func(s RecoveryStats) bool { return s.Exhausted == 1 })
+	if stats.Attempts != 2 || stats.Started != 2 || stats.Failed != 0 ||
+		stats.LastFailure.Stage != "limit" || stats.LastFailure.Err != ErrRecoveryExhausted || stats.LastFailure.WorkerID == "" {
 		t.Fatalf("stats=%+v", stats)
 	}
-	if stats.LastFailure.WorkerID != original.identity() || stats.LastFailure.Stage != "limit" || stats.LastFailure.Err != ErrRecoveryExhausted || stats.LastFailure.Time.IsZero() {
-		t.Fatalf("last failure=%+v", stats.LastFailure)
+	// The remaining worker keeps serving; the pool is not down.
+	if got := m.Workers(); got != 1 {
+		t.Fatalf("workers=%d", got)
 	}
-	if err := m.ScheduleContext(testContext(t), phaseErrorTask{}); err != ErrRecoveryExhausted {
-		t.Fatalf("exhausted pool: %v", err)
-	}
-	if _, err := m.TrySubmit(phaseErrorTask{}); err != ErrRecoveryExhausted {
-		t.Fatalf("admission to exhausted pool: %v", err)
-	}
-	if m.Workers() != 0 {
-		t.Fatal("exhausted worker remained registered")
-	}
-	// Manual replacement starts a new slot budget and preserves failure history.
-	w, err := NewWorker(WithName(original.identity()), WithLogger(zap.NewNop()))
-	if err != nil {
+	if err := m.Schedule(phaseErrorTask{}); err != nil {
 		t.Fatal(err)
-	}
-	if err := m.AddWorker(w); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.ScheduleContext(testContext(t), phaseErrorTask{}); err != nil {
-		t.Fatalf("manual repair: %v", err)
-	}
-	if err := m.ScheduleContext(testContext(t), functionTask{run: func() error { panic("new slot") }}); err != ErrWorkerPanic {
-		t.Fatal(err)
-	}
-	if got := m.RecoveryStats(); got.Attempts != 3 || got.Started != 3 || got.LastFailure != stats.LastFailure {
-		t.Fatalf("stats after repair=%+v", got)
-	}
-	if stats.Attempts != 2 {
-		t.Fatal("previous snapshot was mutated")
 	}
 }
 
-func TestRecoveryLimitIsPerSlot(t *testing.T) {
-	m := newFeatureMaster(t, 2, WithWorkerRecovery(true), recoveryLimit(1))
-	m.mu.RLock()
-	first, second := m.pool[0], m.pool[1]
-	m.mu.RUnlock()
-	panicTask := functionTask{run: func() error { panic("one slot") }}
-	if err := first.Do(panicTask); err != ErrWorkerPanic {
+func TestRecoveryHealsAfterWindow(t *testing.T) {
+	m := newFeatureMaster(t, 1, WithRecoveryPolicy(RecoveryPolicy{MaxRestarts: 1, Window: 50 * time.Millisecond}))
+	if err := m.Schedule(panicTask); err != ErrWorkerPanic {
 		t.Fatal(err)
 	}
-	m.recoverWorker(first.recoveryIdentity())
-	var replacement *Worker
-	m.mu.RLock()
-	for _, w := range m.pool {
-		if w.identity() == first.identity() {
-			replacement = w
-		}
-	}
-	m.mu.RUnlock()
-	if replacement == nil {
-		t.Fatal("missing replacement")
-	}
-	if err := replacement.Do(panicTask); err != ErrWorkerPanic {
+	waitFor(t, "replacement", func() bool { return m.Workers() == 1 })
+	if err := m.Schedule(panicTask); err != ErrWorkerPanic {
 		t.Fatal(err)
 	}
-	m.recoverWorker(replacement.recoveryIdentity())
-	if err := second.Do(panicTask); err != ErrWorkerPanic {
-		t.Fatal(err)
+	waitForRecoveryStats(t, m, func(s RecoveryStats) bool { return s.Exhausted == 1 })
+	if err := m.Schedule(phaseErrorTask{}); err != ErrRecoveryExhausted && err != nil {
+		t.Fatalf("while down=%v", err)
 	}
-	m.recoverWorker(second.recoveryIdentity())
-	if got := m.RecoveryStats(); got.Attempts != 2 || got.Started != 2 || got.Exhausted != 1 {
-		t.Fatalf("stats=%+v", got)
+	waitFor(t, "healed worker", func() bool { return m.Workers() == 1 })
+	if err := m.Schedule(phaseErrorTask{}); err != nil {
+		t.Fatalf("after window=%v", err)
 	}
-	if err := m.ScheduleContext(testContext(t), phaseErrorTask{}); err != nil {
-		t.Fatalf("remaining healthy slot: %v", err)
+	if stats := m.RecoveryStats(); stats.Started != 2 || stats.Exhausted != 1 {
+		t.Fatalf("stats=%+v", stats)
 	}
 }
 
-func TestRecoveryFailureRecordsCauseAndCompletesPendingWork(t *testing.T) {
-	cause := errors.New("cannot allocate replacement")
-	cases := []struct {
-		name  string
-		stage string
-		err   error
-		build func(...Option) (*Worker, error)
-	}{
-		{"create", "create", cause, func(...Option) (*Worker, error) { return nil, cause }},
-		{"start", "start", ErrWorkerStopped, func(opts ...Option) (*Worker, error) {
-			w, err := NewWorker(opts...)
-			if err == nil {
-				w.Stop()
-			}
-			return w, err
-		}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newFeatureMaster(t, 1, WithWorkerRecovery(true), WithQueueCapacity(2), func(m *Master) { m.newRecoveryWorker = tc.build })
-			old := currentWorker(t, m)
-			gate := newGatedTask(t)
-			failed := submitTask(t, m, functionTask{run: func() error { _ = gate.Run(context.Background()); panic("task failure") }})
-			awaitSignal(t, gate.entered)
-			ctx := &observedContext{Context: testContext(t), observed: make(chan struct{})}
-			waiting := make(chan error, 1)
-			go func() { waiting <- m.ScheduleContext(ctx, phaseErrorTask{}) }()
-			awaitSignal(t, ctx.observed)
-			queued := []*Future{submitTask(t, m, phaseErrorTask{}), submitTask(t, m, phaseErrorTask{})}
-			blockedCtx := &observedContext{Context: testContext(t), observed: make(chan struct{})}
-			blocked := make(chan error, 1)
-			go func() { _, err := m.Submit(blockedCtx, phaseErrorTask{}); blocked <- err }()
-			awaitSignal(t, blockedCtx.observed)
-			gate.unblock()
-			if got := awaitResult(t, failed).Err; got != ErrWorkerPanic {
-				t.Fatalf("original task: %v", got)
-			}
-			if got := awaitError(t, waiting); got != ErrRecoveryFailed {
-				t.Fatalf("waiting schedule: %v", got)
-			}
-			for _, f := range queued {
-				if got := awaitResult(t, f).Err; got != ErrRecoveryFailed {
-					t.Fatalf("queued task: %v", got)
+func TestRecoveryCreateFailureRecordsCauseAndRetries(t *testing.T) {
+	cause := errors.New("cannot create")
+	var failing atomic.Bool
+	m := newFeatureMaster(t, 1, WithQueueCapacity(1),
+		WithRecoveryPolicy(RecoveryPolicy{MaxRestarts: 1, Window: 50 * time.Millisecond}),
+		func(m *Master) {
+			create := m.newWorker
+			m.newWorker = func(m *Master) (*Worker, error) {
+				if failing.Load() {
+					return nil, cause
 				}
-			}
-			if got := awaitError(t, blocked); got != ErrRecoveryFailed {
-				t.Fatalf("blocked submit: %v", got)
-			}
-			stats := m.RecoveryStats()
-			if stats.Attempts != 1 || stats.Started != 0 || stats.Failed != 1 || stats.Exhausted != 0 {
-				t.Fatalf("stats=%+v", stats)
-			}
-			failure := stats.LastFailure
-			if failure.WorkerID != old.identity() || failure.RecoveryID != old.recoveryIdentity() || failure.Stage != tc.stage || !errors.Is(failure.Err, tc.err) || failure.Time.IsZero() {
-				t.Fatalf("failure=%+v", failure)
-			}
-			if err := m.Shutdown(testContext(t)); err != nil {
-				t.Fatal(err)
+				return create(m)
 			}
 		})
+	failing.Store(true)
+	gate := newGatedTask(t)
+	last := submitTask(t, m, functionTask{run: func() error { _ = gate.Run(context.Background()); panic("last worker") }})
+	awaitSignal(t, gate.entered)
+	queued := submitTask(t, m, phaseErrorTask{})
+	gate.unblock()
+	if r := awaitResult(t, last); r.Err != ErrWorkerPanic {
+		t.Fatalf("last=%+v", r)
 	}
-}
-
-func TestRecoveryFailureKeepsHealthySlotsAvailable(t *testing.T) {
-	cause := errors.New("replacement unavailable")
-	m := newFeatureMaster(t, 2, WithWorkerRecovery(true), func(m *Master) {
-		m.newRecoveryWorker = func(...Option) (*Worker, error) { return nil, cause }
-	})
-	old := currentWorker(t, m)
-	if err := old.Do(functionTask{run: func() error { panic("one failed slot") }}); err != ErrWorkerPanic {
+	if r := awaitResult(t, queued); r.Err != ErrRecoveryFailed {
+		t.Fatalf("queued=%+v", r)
+	}
+	stats := m.RecoveryStats()
+	if stats.Attempts != 1 || stats.Failed != 1 || stats.LastFailure.Stage != "create" || !errors.Is(stats.LastFailure.Err, cause) {
+		t.Fatalf("stats=%+v", stats)
+	}
+	failing.Store(false)
+	waitFor(t, "retried replacement", func() bool { return m.Workers() == 1 })
+	if err := m.Schedule(phaseErrorTask{}); err != nil {
 		t.Fatal(err)
 	}
-	m.recoverWorker(old.recoveryIdentity())
-	if m.Workers() != 1 {
-		t.Fatal("healthy slot was removed")
-	}
-	if err := m.ScheduleContext(testContext(t), phaseErrorTask{}); err != nil {
-		t.Fatalf("healthy slot rejected work: %v", err)
-	}
-	if got := m.RecoveryStats(); got.Failed != 1 || !errors.Is(got.LastFailure.Err, cause) {
-		t.Fatalf("stats=%+v", got)
-	}
 }
 
-func TestShutdownDrainsQueueWhenRecoveryBudgetExhausts(t *testing.T) {
-	m := newFeatureMaster(t, 1, WithWorkerRecovery(true), WithQueueCapacity(2), recoveryLimit(1))
-	if err := m.ScheduleContext(testContext(t), functionTask{run: func() error { panic("first") }}); err != ErrWorkerPanic {
+func TestShutdownDrainsQueueWhenRestartLimitLeavesNoWorker(t *testing.T) {
+	m := newFeatureMaster(t, 1, WithQueueCapacity(2), recoveryLimit(1))
+	if err := m.Schedule(panicTask); err != ErrWorkerPanic {
 		t.Fatal(err)
 	}
 	gate := newGatedTask(t)
-	active := submitTask(t, m, functionTask{run: func() error { _ = gate.Run(context.Background()); panic("second") }})
+	last := submitTask(t, m, functionTask{run: func() error { _ = gate.Run(context.Background()); panic("last worker") }})
 	awaitSignal(t, gate.entered)
-	queued := []*Future{submitTask(t, m, phaseErrorTask{}), submitTask(t, m, phaseErrorTask{})}
+	queued := submitTask(t, m, phaseErrorTask{})
 	shutdown := make(chan error, 1)
 	go func() { shutdown <- m.Shutdown(testContext(t)) }()
-	awaitSignal(t, m.acceptDone)
 	gate.unblock()
-	if got := awaitResult(t, active).Err; got != ErrWorkerPanic {
-		t.Fatalf("active task: %v", got)
+	if r := awaitResult(t, last); r.Err != ErrWorkerPanic {
+		t.Fatalf("last=%+v", r)
 	}
-	for _, f := range queued {
-		if got := awaitResult(t, f).Err; got != ErrRecoveryExhausted {
-			t.Fatalf("queued task: %v", got)
-		}
+	if r := awaitResult(t, queued); r.Err != ErrRecoveryExhausted {
+		t.Fatalf("queued=%+v", r)
 	}
 	if err := awaitError(t, shutdown); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestDroppedRecoverySignalAndConcurrentObserversDoNotLoseOrDuplicateRecovery(t *testing.T) {
-	m := newFeatureMaster(t, 1, withBufferedRecoverySignalOnly())
-	old := currentWorker(t, m)
-	m.workerPanic <- "occupied"
-	if err := old.Do(functionTask{run: func() error { panic("direct task") }}); err != ErrWorkerPanic {
+func TestNoReplacementAfterStop(t *testing.T) {
+	m := newFeatureMaster(t, 1, WithQueueCapacity(1))
+	gate := newGatedTask(t)
+	f := submitTask(t, m, functionTask{run: func() error { _ = gate.Run(context.Background()); panic("after stop") }})
+	awaitSignal(t, gate.entered)
+	m.Stop()
+	gate.unblock()
+	if r := awaitResult(t, f); r.Err != ErrWorkerPanic {
+		t.Fatalf("result=%+v", r)
+	}
+	if err := m.Wait(testContext(t)); err != nil {
 		t.Fatal(err)
 	}
-	// There is no channel consumer or Master task completion in this test.
-	// The registered done observer must perform the replacement independently.
-	waitForRecoveryStats(t, m, func(s RecoveryStats) bool { return s.Started == 1 })
-	var wg sync.WaitGroup
-	for range 32 {
-		wg.Go(func() { m.recoverWorker(old.recoveryIdentity()) })
-	}
-	wg.Wait()
-	if got := m.RecoveryStats(); got.Attempts != 1 || got.Started != 1 || got.Failed != 0 || got.Exhausted != 0 {
-		t.Fatalf("duplicate notifications changed stats: %+v", got)
-	}
-	if err := m.ScheduleContext(testContext(t), phaseErrorTask{}); err != nil {
-		t.Fatalf("replacement unavailable: %v", err)
+	if stats := m.RecoveryStats(); stats != (RecoveryStats{}) {
+		t.Fatalf("replaced after Stop: %+v", stats)
 	}
 }
 
@@ -270,7 +179,7 @@ func (c failureLogCore) Write(e zapcore.Entry, _ []zapcore.Field) error { c.writ
 
 func TestStartupPanicsAreBoundedEvenWhenDiagnosticLoggerPanics(t *testing.T) {
 	logger := zap.New(failureLogCore{Core: zapcore.NewNopCore(), write: func(zapcore.Entry) { panic("logger failure") }})
-	m := newFeatureMaster(t, 1, WithWorkerRecovery(true), recoveryLimit(3), WithMasterLogger(logger))
+	m := newFeatureMaster(t, 1, recoveryLimit(3), WithMasterLogger(logger))
 	stats := waitForRecoveryStats(t, m, func(s RecoveryStats) bool { return s.Exhausted == 1 })
 	if stats.Attempts != 3 || stats.Started != 3 || stats.Failed != 0 {
 		t.Fatalf("startup panic loop: %+v", stats)
@@ -314,69 +223,6 @@ func TestPanicResultPrecedesBlockingDiagnosticLog(t *testing.T) {
 	}
 }
 
-func TestDoneObserverDoesNotRestartAfterStop(t *testing.T) {
-	entered, release := make(chan struct{}), make(chan struct{})
-	var once sync.Once
-	unblock := func() { once.Do(func() { close(release) }) }
-	logger := zap.New(failureLogCore{Core: zapcore.NewNopCore(), write: func(e zapcore.Entry) {
-		if e.Message == workerPanic {
-			close(entered)
-			<-release
-		}
-	}})
-	m := newFeatureMaster(t, 1, withBufferedRecoverySignalOnly(), WithMasterLogger(logger))
-	t.Cleanup(unblock)
-	m.workerPanic <- "occupied"
-	old := currentWorker(t, m)
-	if err := old.Do(functionTask{run: func() error { panic("task") }}); err != ErrWorkerPanic {
-		t.Fatal(err)
-	}
-	awaitSignal(t, entered)
-	m.Stop()
-	unblock()
-	if err := m.Wait(testContext(t)); err != nil {
-		t.Fatal(err)
-	}
-	if got := m.RecoveryStats(); got.Attempts != 0 || got.Started != 0 {
-		t.Fatalf("observer restarted during shutdown: %+v", got)
-	}
-}
-
-func TestStalePanickedWorkerReportsRecoveryFailure(t *testing.T) {
-	entered, release := make(chan struct{}), make(chan struct{})
-	var once sync.Once
-	unblock := func() { once.Do(func() { close(release) }) }
-	logger := zap.New(failureLogCore{Core: zapcore.NewNopCore(), write: func(e zapcore.Entry) {
-		if e.Message == workerPanic {
-			close(entered)
-			<-release
-		}
-	}})
-	cause := errors.New("replacement unavailable")
-	m := newFeatureMaster(t, 1, withBufferedRecoverySignalOnly(), WithMasterLogger(logger), func(m *Master) {
-		m.newRecoveryWorker = func(...Option) (*Worker, error) { return nil, cause }
-	})
-	t.Cleanup(unblock)
-	old := currentWorker(t, m)
-	m.workerPanic <- "occupied"
-	if err := old.Do(functionTask{run: func() error { panic("direct task") }}); err != ErrWorkerPanic {
-		t.Fatal(err)
-	}
-	awaitSignal(t, entered)
-	// The queued token still names the panicked worker; neither the dropped
-	// notification nor the blocked done observer has recovered it yet.
-	if err := m.ScheduleContext(testContext(t), phaseErrorTask{}); err != ErrRecoveryFailed {
-		t.Fatalf("stale token: %v", err)
-	}
-	if got := m.RecoveryStats(); got.Failed != 1 || !errors.Is(got.LastFailure.Err, cause) {
-		t.Fatalf("stats=%+v", got)
-	}
-	unblock()
-	if err := m.Shutdown(testContext(t)); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestRestartBudgetRollingWindow(t *testing.T) {
 	policy := RecoveryPolicy{MaxRestarts: 2, Window: time.Minute}
 	now := time.Unix(1_000, 0)
@@ -398,7 +244,24 @@ func TestRestartBudgetRollingWindow(t *testing.T) {
 	}
 }
 
-func TestRecoveryPolicyValidationAndDisabledRecovery(t *testing.T) {
+func TestRestartBudgetNextAllowed(t *testing.T) {
+	policy := RecoveryPolicy{MaxRestarts: 1, Window: time.Minute}
+	var budget restartBudget
+	now := time.Now()
+	if got := budget.nextAllowed(policy); got.After(time.Now()) {
+		t.Fatalf("empty budget waits until %v", got)
+	}
+	budget.allow(now, policy)
+	next := budget.nextAllowed(policy)
+	if !next.After(now.Add(policy.Window)) {
+		t.Fatalf("next=%v, want after %v", next, now.Add(policy.Window))
+	}
+	if !budget.allow(next, policy) {
+		t.Fatal("attempt at nextAllowed was denied")
+	}
+}
+
+func TestRecoveryPolicyValidation(t *testing.T) {
 	for _, policy := range []RecoveryPolicy{{}, {MaxRestarts: -1, Window: time.Minute}, {MaxRestarts: 1}, {MaxRestarts: 1, Window: -time.Second}} {
 		if m, err := NewMaster(WithRecoveryPolicy(policy)); m != nil || err != ErrInvalidRecoveryPolicy {
 			t.Fatalf("policy=%+v master=%v err=%v", policy, m, err)
@@ -408,15 +271,5 @@ func TestRecoveryPolicyValidationAndDisabledRecovery(t *testing.T) {
 		if got := m.RecoveryStats(); got != (RecoveryStats{}) {
 			t.Fatalf("uninitialized stats=%+v", got)
 		}
-	}
-	m := newFeatureMaster(t, 1, recoveryLimit(1))
-	if err := m.ScheduleContext(testContext(t), functionTask{run: func() error { panic("disabled recovery") }}); err != ErrWorkerPanic {
-		t.Fatal(err)
-	}
-	if got := m.RecoveryStats(); got != (RecoveryStats{}) {
-		t.Fatalf("policy enabled recovery: %+v", got)
-	}
-	if err := m.ScheduleContext(context.Background(), phaseErrorTask{}); err != ErrMasterWorkerPoolIsEmpty {
-		t.Fatal(err)
 	}
 }

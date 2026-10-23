@@ -64,17 +64,11 @@ func runExample(dir string) (err error) {
 	// This job is already durable, even though the Master does not exist yet.
 	fmt.Println(accepted.State)
 
-	m, err := worker.NewMaster(worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
+	m, err := worker.NewMaster(worker.WithWorkers(1, 1), worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
 	if err != nil {
 		return err
 	}
 	defer m.Stop()
-	if err := m.AddWorkers(1); err != nil {
-		return err
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		return err
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	finished := make(chan error, 1)
 	go func() { finished <- q.Run(ctx, m, buildWrite, 1) }()

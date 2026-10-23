@@ -8,13 +8,12 @@ package worker
 import (
 	"context"
 	"errors"
-	"fmt"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	guuid "github.com/google/uuid"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -57,16 +56,14 @@ var (
 	ErrWorkerNotInitialized error = errors.New("worker is not initialized")
 )
 
-// Worker executes one task at a time. A Worker belongs to at most one Master.
+// Worker executes one task at a time. A standalone Worker, created by
+// NewWorker, runs tasks given to Do. A Master creates its own workers.
 type Worker struct {
 	mu   sync.Mutex
 	task chan *taskRequest
 	name string
-	id   string
-
-	recoveryID string
-	// recoveryBudget is shared across replacements and guarded by the master.
-	recoveryBudget *restartBudget
+	// owner is the master whose queues a pool worker serves; nil if standalone.
+	owner *Master
 
 	logger           *zap.Logger
 	loggerConfigured bool
@@ -78,21 +75,18 @@ type Worker struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// recovery carries this worker's recovery identity to its master after a panic.
-	recovery chan string
-	quit     chan any
+	quit chan any
 
 	started  bool
 	stopped  bool
-	panicked bool
 	stopOnce sync.Once
 }
 
 // Option configures a Worker in NewWorker.
 type Option func(w *Worker)
 
-// WithName sets the worker name, which is also its identity in a Master.
-// The name must not be empty. By default NewWorker generates a UUID.
+// WithName sets the worker name used in its logs. The name must not be
+// empty. By default NewWorker generates a UUID.
 func WithName(name string) Option {
 	return func(w *Worker) {
 		w.name = name
@@ -108,25 +102,10 @@ func WithLogger(logger *zap.Logger) Option {
 	}
 }
 
-// withRecovery gives a worker created by a master its recovery channel.
-func withRecovery(ok bool) Option {
-	return func(w *Worker) {
-		if !ok {
-			w.recovery = nil
-			return
-		}
-
-		if w.recovery == nil {
-			w.recovery = make(chan string, 1)
-		}
-	}
-}
-
 // NewWorker returns an initialized, unstarted worker.
 func NewWorker(opts ...Option) (*Worker, error) {
-	name := guuid.New().String()
 	w := &Worker{
-		name: name, recoveryID: name,
+		name: guuid.New().String(),
 		quit: make(chan any), task: make(chan *taskRequest),
 		done: make(chan struct{}),
 	}
@@ -141,16 +120,26 @@ func NewWorker(opts ...Option) (*Worker, error) {
 		return nil, ErrInvalidLogger
 	}
 	if w.logger == nil {
-		config := zap.NewProductionConfig()
-		config.Encoding = "console"
-		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-		logger, err := config.Build()
+		logger, err := newDefaultLogger()
 		if err != nil {
-			return nil, fmt.Errorf("failed to create logger for worker: %w", err)
+			return nil, err
 		}
 		w.logger = logger
 	}
-	w.id = w.name
+	return w, nil
+}
+
+// newPoolWorker creates a worker that serves m's queues. Its context is a
+// child of m.abortCtx, so Master.Stop cancels every running task.
+func newPoolWorker(m *Master) (*Worker, error) {
+	w := &Worker{
+		name: guuid.New().String(), owner: m,
+		quit: make(chan any), task: make(chan *taskRequest),
+		done: make(chan struct{}),
+		// The master owns the shared logger and its Sync.
+		logger: m.logger, loggerConfigured: true,
+	}
+	w.ctx, w.cancel = context.WithCancel(m.abortCtx)
 	return w, nil
 }
 
@@ -185,39 +174,25 @@ func (w *Worker) start() error {
 	return nil
 }
 
+// runState is the task a worker is executing, kept for its panic handler.
+type runState struct {
+	request *taskRequest
+	result  Result
+	owner   *taskMetrics
+	active  bool
+}
+
 func (w *Worker) run() {
-	var activeTask *taskRequest
-	var result Result
-	var owner *taskMetrics
-	active := false
+	var st runState
 	defer w.finishOnce.Do(func() { close(w.done) })
 	defer w.cancel()
-	defer func() {
-		reason := recover()
-		// active also handles runtime.Goexit and legacy panic(nil), which would
-		// otherwise abandon a caller that is waiting for its task result.
-		if reason != nil || active {
-			result.Err = ErrWorkerPanic
-			result.PanicValue = reason
-			result.PanicStack = string(debug.Stack())
-			if cause, ok := reason.(error); ok {
-				result.Cause = cause
-			}
-			w.mu.Lock()
-			w.panicked = true
-			w.mu.Unlock()
-			w.stop()
-			if active {
-				w.finishTask(owner, result)
-				w.reportTaskResult(activeTask, result)
-			}
-			w.notifyRecovery()
-			w.logPanic(reason)
-		}
-		w.markStopped()
-	}()
+	defer w.recoverRun(&st)
 
 	w.logger.Info(workerEventStart, zap.String("worker", w.name))
+	if w.owner != nil {
+		w.servePool(&st)
+		return
+	}
 	for {
 		select {
 		case <-w.quit:
@@ -227,25 +202,130 @@ func (w *Worker) run() {
 			}
 			return
 		case request := <-w.task:
-			w.mu.Lock()
-			if w.stopped {
-				w.mu.Unlock()
+			if w.isStopped() {
 				w.reportTaskResult(request, Result{Err: ErrWorkerStopped})
 				return
 			}
-			owner = w.ownerMetrics
-			w.metrics.begin()
-			if owner != nil {
-				owner.begin()
-			}
-			w.mu.Unlock()
-			activeTask, active, result = request, true, Result{}
-			w.executeTask(request.Task, &result)
-			w.finishTask(owner, result)
-			active = false
-			w.reportTaskResult(request, result)
-			activeTask = nil
+			w.execute(&st, request)
 		}
+	}
+}
+
+// servePool is a pool worker's loop. The worker decides what to do with each
+// request from the master's state: it runs tasks while the master accepts
+// work, keeps running queued tasks while the master drains, and answers them
+// with ErrMasterStopped once the master aborts.
+func (w *Worker) servePool(st *runState) {
+	m := w.owner
+	// Only a scaling pool tracks idle workers and retires them.
+	var idle *time.Timer
+	var idleC <-chan time.Time
+	if m.scales() {
+		idle = time.NewTimer(m.idleTimeout)
+		defer idle.Stop()
+		idleC = idle.C
+	}
+	setIdle := func(delta int32) {
+		if idle != nil {
+			m.idle.Add(delta)
+		}
+	}
+	for {
+		setIdle(1)
+		var request *taskRequest
+		select {
+		case request = <-m.direct:
+		case r, ok := <-m.queue:
+			if !ok {
+				setIdle(-1)
+				return
+			}
+			request = r
+		case <-m.acceptCtx.Done():
+			setIdle(-1)
+			// Draining: nothing new arrives on direct, and the queue is
+			// closed once every producer has finished.
+			if m.queue == nil {
+				return
+			}
+			for request := range m.queue {
+				w.serve(st, request)
+			}
+			return
+		case <-idleC:
+			setIdle(-1)
+			if m.retire(w) {
+				return
+			}
+			idle.Reset(m.idleTimeout)
+			continue
+		}
+		setIdle(-1)
+		if idle != nil && len(m.queue) > 0 {
+			// A backlog remains: add a worker even if no new task arrives.
+			_ = m.grow(len(m.queue))
+		}
+		w.serve(st, request)
+		if idle != nil {
+			idle.Reset(m.idleTimeout)
+		}
+	}
+}
+
+func (w *Worker) serve(st *runState, request *taskRequest) {
+	if w.owner.abortCtx.Err() != nil {
+		request.reply(Result{Err: ErrMasterStopped})
+		return
+	}
+	w.execute(st, request)
+}
+
+func (w *Worker) execute(st *runState, request *taskRequest) {
+	w.mu.Lock()
+	st.owner = w.ownerMetrics
+	w.mu.Unlock()
+	w.metrics.begin()
+	if st.owner != nil {
+		st.owner.begin()
+	}
+	st.request, st.active, st.result = request, true, Result{}
+	w.executeTask(request.Task, &st.result)
+	w.finishTask(st.owner, st.result)
+	st.active = false
+	w.reportTaskResult(request, st.result)
+	st.request = nil
+}
+
+// recoverRun ends the worker. A pool worker first tells its master, which
+// may replace it, so a caller that sees ErrWorkerPanic can rely on the
+// replacement. After a panic or runtime.Goexit, the active task then gets
+// ErrWorkerPanic, before diagnostic logging.
+func (w *Worker) recoverRun(st *runState) {
+	reason := recover()
+	// active also covers runtime.Goexit and legacy panic(nil), which would
+	// otherwise abandon a caller waiting for its task result.
+	panicked := reason != nil || st.active
+	if panicked {
+		st.result.Err = ErrWorkerPanic
+		st.result.PanicValue = reason
+		st.result.PanicStack = string(debug.Stack())
+		if cause, ok := reason.(error); ok {
+			st.result.Cause = cause
+		}
+		w.stop()
+	}
+	w.markStopped()
+	if st.active {
+		w.finishTask(st.owner, st.result)
+	}
+	if w.owner != nil {
+		w.owner.workerExited(w, panicked)
+	}
+	if st.active {
+		w.reportTaskResult(st.request, st.result)
+	}
+	if panicked {
+		w.logPanic(reason)
 	}
 }
 
@@ -303,52 +383,10 @@ func (w *Worker) Name() string {
 	return w.name
 }
 
-func (w *Worker) identity() string {
-	if w.id == "" {
-		return w.name
-	}
-	return w.id
-}
-
-func (w *Worker) recoveryIdentity() string {
-	if w.recoveryID == "" {
-		return w.identity()
-	}
-	return w.recoveryID
-}
-
-func (w *Worker) notifyRecovery() {
-	w.mu.Lock()
-	recovery := w.recovery
-	w.mu.Unlock()
-	if recovery == nil {
-		return
-	}
-
-	// Never block a dying worker. A pending signal is enough: the master also
-	// observes each worker's exit.
-	select {
-	case recovery <- w.recoveryIdentity():
-	default:
-	}
-}
-
 func (w *Worker) isStopped() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.stopped
-}
-
-func (w *Worker) didPanic() bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.panicked
-}
-
-func (w *Worker) isStarted() bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.started && !w.stopped
 }
 
 func (w *Worker) isInitialized() bool {

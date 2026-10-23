@@ -43,15 +43,9 @@ func (t *testTask) Done(context.Context) error {
 
 func testMaster(t *testing.T, workers int, options ...worker.MasterOption) *worker.Master {
 	t.Helper()
-	options = append(options, worker.WithQueueCapacity(workers), worker.WithMasterLogger(zap.NewNop()))
+	options = append(options, worker.WithWorkers(workers, workers), worker.WithQueueCapacity(workers), worker.WithMasterLogger(zap.NewNop()))
 	m, err := worker.NewMaster(options...)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := m.AddWorkers(workers); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(m.Stop)
@@ -106,11 +100,8 @@ func TestMasterUnavailablePreservesDurableAcceptanceAndRefundsAttempt(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	empty, err := worker.NewMaster(worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer empty.Stop()
+	stopped := testMaster(t, 1)
+	stopped.Stop()
 	var builds atomic.Int64
 	build := func(_ context.Context, job Job) (worker.Task, error) {
 		builds.Add(1)
@@ -119,7 +110,7 @@ func TestMasterUnavailablePreservesDurableAcceptanceAndRefundsAttempt(t *testing
 		}
 		return &testTask{}, nil
 	}
-	if err := q.Run(context.Background(), empty, build, 1); !errors.Is(err, worker.ErrMasterWorkerPoolIsEmpty) {
+	if err := q.Run(context.Background(), stopped, build, 1); !errors.Is(err, worker.ErrMasterStopped) {
 		t.Fatalf("unavailable master = %v", err)
 	}
 	pending, err := q.Job(context.Background(), accepted.ID)
@@ -248,7 +239,7 @@ func TestPanicAndGoexitRemainUnknownWithoutTaskRetryOptIn(t *testing.T) {
 	for _, mode := range []string{"panic", "goexit", "builder-panic"} {
 		t.Run(mode, func(t *testing.T) {
 			q := openQueue(t)
-			m := testMaster(t, 1, worker.WithWorkerRecovery(true))
+			m := testMaster(t, 1)
 			if _, err := q.Enqueue(context.Background(), spec(mode)); err != nil {
 				t.Fatal(err)
 			}
@@ -283,7 +274,7 @@ func TestCallerDiagnosticGoexitDoesNotAbandonProcessor(t *testing.T) {
 	for _, mode := range []string{"error", "panic"} {
 		t.Run(mode, func(t *testing.T) {
 			q := openQueue(t)
-			m := testMaster(t, 1, worker.WithWorkerRecovery(true))
+			m := testMaster(t, 1)
 			if _, err := q.Enqueue(context.Background(), spec(mode)); err != nil {
 				t.Fatal(err)
 			}
@@ -339,7 +330,7 @@ func TestReconstructionErrorsAndNilTaskArePersisted(t *testing.T) {
 
 func TestSafePanicRetryRebuildsTasksAndPreservesBudgetWhenWorkerRecoveryExhausts(t *testing.T) {
 	q := openQueue(t)
-	m := testMaster(t, 1, worker.WithWorkerRecovery(true), worker.WithRecoveryPolicy(worker.RecoveryPolicy{
+	m := testMaster(t, 1, worker.WithRecoveryPolicy(worker.RecoveryPolicy{
 		MaxRestarts: 1, Window: time.Minute,
 	}))
 	input := spec("panic-retry")
@@ -559,11 +550,17 @@ func TestDispatchRetryWaitsForRepairedMaster(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := worker.NewMaster(worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
-	if err != nil {
-		t.Fatal(err)
+	// Exhaust the restart limit so the Master has no worker until the window
+	// passes and it restores one on its own.
+	m := testMaster(t, 1, worker.WithRecoveryPolicy(worker.RecoveryPolicy{MaxRestarts: 1, Window: 200 * time.Millisecond}))
+	for range 2 {
+		if err := m.Schedule(&testTask{run: func() error { panic("lose the worker") }}); err != worker.ErrWorkerPanic {
+			t.Fatal(err)
+		}
 	}
-	defer m.Stop()
+	if _, err := m.TrySubmit(&testTask{}); !errors.Is(err, worker.ErrRecoveryExhausted) {
+		t.Fatalf("master still has a worker: %v", err)
+	}
 	var builds atomic.Int64
 	build := func(context.Context, Job) (worker.Task, error) {
 		builds.Add(1)
@@ -603,17 +600,11 @@ func TestDispatchRetryWaitsForRepairedMaster(t *testing.T) {
 	default:
 	}
 
-	if err := m.AddWorkers(1); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		t.Fatal(err)
-	}
 	if job := waitJob(t, q, accepted.ID, Succeeded); job.Attempts != 1 || builds.Load() != 1 {
 		t.Fatalf("finished = %+v, builds=%d", job, builds.Load())
 	}
 	cancel()
-	if err := <-done; !errors.Is(err, context.Canceled) || errors.Is(err, worker.ErrMasterWorkerPoolIsEmpty) {
+	if err := <-done; !errors.Is(err, context.Canceled) || errors.Is(err, worker.ErrRecoveryExhausted) {
 		t.Fatalf("Run = %v, want only cancellation", err)
 	}
 }

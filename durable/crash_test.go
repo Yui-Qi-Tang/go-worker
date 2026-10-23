@@ -48,14 +48,8 @@ func TestCrashHelper(t *testing.T) {
 		<-time.After(time.Hour)
 		return
 	}
-	m, err := worker.NewMaster(worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
+	m, err := worker.NewMaster(worker.WithWorkers(1, 1), worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := m.AddWorkers(1); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
 		t.Fatal(err)
 	}
 	phasesFinished := make(chan struct{})

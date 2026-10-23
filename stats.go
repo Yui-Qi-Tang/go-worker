@@ -65,9 +65,9 @@ func (w *Worker) Stats() WorkerStats {
 }
 
 // MasterStats reports the pool and its executions. Execution counters survive
-// worker replacement and include direct tasks started after registration.
-// Queued includes the head being offered to a worker; execution counters and
-// pool/queue fields are sampled separately, not as a global atomic snapshot.
+// worker replacement. Queued counts tasks waiting for a worker. Execution
+// counters and pool/queue fields are sampled separately, not as a global
+// atomic snapshot. Stopped means Stop was called or shutdown finished.
 type MasterStats struct {
 	TaskStats
 	Workers       int
@@ -82,11 +82,17 @@ func (m *Master) Stats() MasterStats {
 	if !m.isInitialized() {
 		return MasterStats{}
 	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stopped := m.aborting
+	select {
+	case <-m.done:
+		stopped = true
+	default:
+	}
 	return MasterStats{
-		TaskStats: m.metrics.snapshot(), Workers: len(m.pool),
-		Queued: len(m.pending), QueueCapacity: m.queueCapacity,
-		Closing: m.closing, Stopped: m.stopped,
+		TaskStats: m.metrics.snapshot(), Workers: len(m.workers),
+		Queued: len(m.queue), QueueCapacity: m.queueCapacity,
+		Closing: m.closing, Stopped: stopped,
 	}
 }

@@ -37,7 +37,7 @@ build := func(ctx context.Context, job durable.Job) (worker.Task, error) {
 	return newPaymentTask(job.ID, job.Payload)
 }
 
-// m has started workers and WithQueueCapacity(n > 0). Run blocks until
+// m was created with WithQueueCapacity(n > 0). Run blocks until
 // runnerCtx is canceled or an error stops it.
 err = q.Run(runnerCtx, m, build, 4)
 ```
@@ -67,7 +67,8 @@ returns; canceling it never cancels a Task.
 - **Rejections before execution are free.** If the Master rejects a job before
   running it, the job returns to `pending` and the attempt is refunded. `Run`
   then returns the error, unless you pass `durable.WithDispatchRetry(delay)`,
-  which keeps waiting while the pool is empty or worker recovery has failed.
+  which keeps waiting while the master has no worker because its restart
+  limit was reached or a worker could not be created.
 - **Same ID, same job.** Re-enqueueing an ID with the same spec returns the
   existing record; a different spec returns `ErrConflict`.
 - **Bounded history.** `q.Purge(ctx, cutoff, durable.Succeeded, durable.Failed)`

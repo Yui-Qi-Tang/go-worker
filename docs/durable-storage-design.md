@@ -46,7 +46,7 @@ flowchart TB
 | bbolt | 本機 key-value 交易、資料檔案、檔案鎖定 | Queue |
 
 Runner 是 `Queue.Run` 的職責，沒有另外的公開 Runner 型別。
-使用方必須先替 Master 加入並啟動 Workers，且設定正數 `WithQueueCapacity`；
+Master 必須設定正數 `WithQueueCapacity`；Master 自行建立與監督自己的 Worker。
 Queue.Run 不會建立、關閉 Master，也不修改 Worker recovery policy。
 
 依賴方向是 `應用程式 → durable → worker` 與 `durable → bbolt`；核心 worker 套件不依賴 durable。
@@ -205,7 +205,7 @@ MaxAttempts 大於一時必須宣告 Safe。Safe 只表示使用方承諾冪等�
 | 預算 | 控制對象 | 保存位置 |
 | --- | --- | --- |
 | `durable.RetryPolicy` + Job.Attempts | 同一 Job 最多可消耗多少嘗試，跨程序重啟保留 | Job 紀錄 |
-| `worker.RecoveryPolicy` | 同一 Worker 位置的替換次數與滾動窗口 | Master 記憶體狀態 |
+| `worker.RecoveryPolicy` | 整個 pool 替換 panic Worker 的次數與滾動窗口 | Master 記憶體狀態 |
 
 兩者獨立：Worker 替換成功不退還已執行的 Task 嘗試，Task phase error 也不消耗 Worker 替換預算。
 
@@ -225,14 +225,13 @@ Submit 已接納、後來派送失敗的 Future 依核心 Result 合約分類：
 
 | 錯誤 | 意義 |
 | --- | --- |
-| `worker.ErrMasterWorkerPoolIsEmpty` | pool 沒有 Worker |
-| `worker.ErrRecoveryExhausted` | 最後一個 Worker 的替換預算耗盡 |
-| `worker.ErrRecoveryFailed` | 最後一個 Worker 無法替換 |
+| `worker.ErrRecoveryExhausted` | 沒有 Worker 在執行，且替換已達重啟上限 |
+| `worker.ErrRecoveryFailed` | 沒有 Worker 在執行，且無法建立替換的 Worker |
 
 這時退款交易同時把 NextAttemptAt 設為現在加 delay，processor 等待 delay 或 ctx 取消後再領取，Run 不返回。
-使用方在同一個 Master 上 `AddWorkers` 並 `WakeAllWorkersUp` 後即可繼續派送。
+Master 會在重啟上限的時間窗口允許時自行恢復 Worker，之後即可繼續派送。
 其他派送錯誤（例如 `ErrMasterStopped`）與退款提交失敗仍會結束 Run；delay 必須為正數。
-未使用這個選項時，上述錯誤會結束 Run，由使用方恢復容量後再啟動 Run。
+未使用這個選項時，上述錯誤會結束 Run，由使用方在 Master 恢復 Worker 後再啟動 Run。
 
 ## 7. 中斷點與恢復
 

@@ -95,17 +95,11 @@ func runChannel(_ *testing.B, workers, tasks int, job func()) {
 }
 
 func runGoWorker(b *testing.B, workers, tasks int, job func()) {
-	m, err := worker.NewMaster(worker.WithQueueCapacity(queueCapacity), worker.WithMasterLogger(zap.NewNop()))
+	m, err := worker.NewMaster(worker.WithWorkers(workers, workers), worker.WithQueueCapacity(queueCapacity), worker.WithMasterLogger(zap.NewNop()))
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer m.Stop()
-	if err := m.AddWorkers(workers); err != nil {
-		b.Fatal(err)
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		b.Fatal(err)
-	}
 	task := benchmarkTask{run: job}
 	for range tasks {
 		if _, err := m.Submit(context.Background(), task); err != nil {

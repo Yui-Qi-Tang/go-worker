@@ -25,11 +25,11 @@ type runConfig struct {
 	retryDelay    time.Duration
 }
 
-// WithDispatchRetry keeps Run going while the Master has no dispatch capacity:
-// its pool is empty, or worker replacement was exhausted or failed. The job
-// stays pending without spending a Task attempt, and the processor waits delay
-// before claiming again. Run continues until ctx is canceled or another error
-// occurs; restore capacity with Master.AddWorkers and WakeAllWorkersUp.
+// WithDispatchRetry keeps Run going while the Master has no running worker
+// because worker replacement hit its restart limit or failed. The job stays
+// pending without spending a Task attempt, and the processor waits delay
+// before claiming again; the Master restores workers when its restart window
+// allows. Run continues until ctx is canceled or another error occurs.
 // Without this option, those errors end Run. delay must be positive.
 func WithDispatchRetry(delay time.Duration) RunOption {
 	return func(c *runConfig) {
@@ -38,11 +38,10 @@ func WithDispatchRetry(delay time.Duration) RunOption {
 	}
 }
 
-// retryable reports whether err means only that the Master currently lacks
-// workers, which the application can repair without restarting Run.
+// retryable reports whether err means only that the Master currently has no
+// running worker, which it repairs on its own.
 func (c runConfig) retryable(err error) bool {
-	return c.dispatchRetry && (errors.Is(err, worker.ErrMasterWorkerPoolIsEmpty) ||
-		errors.Is(err, worker.ErrRecoveryExhausted) || errors.Is(err, worker.ErrRecoveryFailed))
+	return c.dispatchRetry && (errors.Is(err, worker.ErrRecoveryExhausted) || errors.Is(err, worker.ErrRecoveryFailed))
 }
 
 // errDispatchDeferred reports a retryable dispatch rejection already persisted.
