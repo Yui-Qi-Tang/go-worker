@@ -7,6 +7,8 @@
 修訂：2026-10-23。補上 schema v2 的 ready index、v1 遷移、`Purge` 與 `WithDispatchRetry`。
 修訂基線：`0941ed514286488d3a65bc214281e3380e7d41bd`；版本：Go **1.27.3**、bbolt **v1.5.0**。
 
+v1.0.0 修訂：模組路徑改為 `github.com/Yui-Qi-Tang/go-worker`；Task 各階段與 Builder 收到 Worker 的 context。
+
 這份文件說明 task durable 的責任邊界、資料模型、交易、失敗與恢復語意。
 目前採用本機 bbolt 後端；尚未實作的儲存替換方向另列於最後，供討論。
 本文不變更既有 failed/panic Worker 移除與替換策略。
@@ -25,7 +27,8 @@
 
 範圍是**單程序、本機資料庫、一個資料庫擁有者、一個 Queue.Run**。
 持久化 Job，不保存 Task 物件、Master/Worker 狀態、goroutine、context 或執行到一半的 stack。
-Task 保持 `ID / Init / Run / Done` 介面，不綁定 Runner 的 parent context。
+Task 維持 `ID / Init / Run / Done` 四個階段；Init、Run、Done 與 Builder 收到執行它的 Worker 的 context。
+這個 context 只在 `Master.Stop`／`Worker.Stop` 或 Worker 結束時取消，不綁定 Runner 的 parent context。
 
 ## 2. 元件與責任
 

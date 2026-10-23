@@ -21,6 +21,7 @@ supports up to 256 registered workers.
 - [Durable tasks](#durable-tasks)
 - [Logging and statistics](#logging-and-statistics)
 - [Development](#development)
+- [Versioning](#versioning)
 
 ## Requirements and import
 
@@ -373,7 +374,21 @@ See the [validation record](docs/feature-evaluation.md),
 The local codebase-memory-mcp graph lives in `.codebase-memory/`, which is ignored
 by Git. Refresh it after substantial source changes.
 
-The Go upgrade preserves existing public method signatures and task-phase
-sentinels. Errors use standard-library `errors` and `fmt.Errorf`; the previous
-`pkg/errors` stack formatting and `Cause()` API are not retained. Dependencies
-were later upgraded to UUID v1.6.0 and Zap v1.28.0 without API changes here.
+## Versioning
+
+v1.0.0 is the first release under `github.com/Yui-Qi-Tang/go-worker`. The module
+follows semantic versioning: changes that break callers of the exported API
+wait for a new major version. Compared with unreleased checkouts under
+`yuki-tang.github.com`, v1.0.0:
+
+- moves the module path;
+- passes the worker's context to `Init`, `Run`, and `Done`, and to the durable
+  `Builder`;
+- hides `Master` and `Worker` internals, including their embedded mutexes, and
+  removes raw sends on `Worker.Task`; `Worker.Name()` replaces the `Name` field;
+- replaces `GetWorkers` and `GetPoolSize` with `Workers`, removes the `Dispatch`
+  alias, and makes `RecoveryWorker` and `WithRecovery` internal;
+- migrates durable queue files to schema version 2 when they are opened.
+
+Errors use standard-library `errors` and `fmt.Errorf`; the earlier `pkg/errors`
+stack formatting and `Cause()` API are not retained.
