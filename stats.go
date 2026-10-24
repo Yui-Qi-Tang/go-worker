@@ -92,7 +92,7 @@ func (m *Master) Stats() MasterStats {
 	}
 	return MasterStats{
 		TaskStats: m.metrics.snapshot(), Workers: len(m.workers),
-		Queued: len(m.queue), QueueCapacity: m.queueCapacity,
+		Queued: len(m.ready.slots), QueueCapacity: m.queueCapacity,
 		Closing: m.closing, Stopped: stopped,
 	}
 }

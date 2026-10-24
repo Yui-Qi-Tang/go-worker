@@ -404,7 +404,8 @@ CI also vets and race-checks the [benchmark module](benchmarks/README.md). The
 | `worker.go`, `worker_task.go` | Worker lifecycle and task execution |
 | `task.go`, `result.go` | Task contract and results |
 | `master.go`, `master_queue.go` | Admission: synchronous calls and the bounded queue |
-| `master_pool.go` | Worker supervision: scaling, replacement, and the drainer |
+| `ready_queue.go` | The task queue workers take from, shared by both admission paths |
+| `master_pool.go` | Worker supervision: scaling and replacement |
 | `master_lifecycle.go` | Stop, shutdown, and waiting |
 | `recovery.go`, `future.go` | Restart limits and futures |
 | `stats.go` | Execution counters |

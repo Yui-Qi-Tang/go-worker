@@ -2,8 +2,8 @@ package worker
 
 import "context"
 
-// Stop rejects new work and returns without waiting. Workers answer queued
-// tasks with ErrMasterStopped instead of running them, and the context of each
+// Stop rejects new work and returns without waiting. Queued tasks are
+// answered with ErrMasterStopped instead of running, and the context of each
 // running task is canceled; that task still finishes with its own result.
 func (m *Master) Stop() {
 	if !m.isInitialized() {
@@ -43,6 +43,7 @@ func (m *Master) beginShutdown(abort bool) {
 	m.aborting = m.aborting || abort
 	if first {
 		close(m.acceptDone)
+		m.ready.rejectSchedules(ErrMasterStopped)
 		for w := range m.workers {
 			w.requestDrain()
 		}
@@ -56,17 +57,8 @@ func (m *Master) beginShutdown(abort bool) {
 			w.requestAbort()
 			w.cancelTask()
 		}
-	}
-	if startAbort && m.queue != nil && !m.queueDrained {
 		// Answer queued tasks now rather than when a busy worker frees up.
-		// The loop ends when finishShutdown closes the queue.
-		m.background.Add(1)
-		go func() {
-			defer m.background.Done()
-			for request := range m.queue {
-				request.reply(Result{Err: ErrMasterStopped})
-			}
-		}()
+		m.ready.stop(ErrMasterStopped)
 	}
 	m.mu.Unlock()
 
@@ -77,11 +69,9 @@ func (m *Master) beginShutdown(abort bool) {
 
 func (m *Master) finishShutdown() {
 	// Producers check acceptDone under admit's read lock, so once the write
-	// lock is held no send can follow and the queue can be closed.
+	// lock is held no task can be queued and the queue can be closed.
 	m.admit.Lock()
-	if m.queue != nil {
-		close(m.queue)
-	}
+	close(m.ready.closed)
 	m.admit.Unlock()
 
 	// Workers drain the closed queue before they exit.
@@ -90,18 +80,7 @@ func (m *Master) finishShutdown() {
 	if failure := m.poolDown.Load(); failure != nil {
 		err = failure.err
 	}
-	if m.queue != nil {
-		// Only a pool without workers leaves tasks behind.
-		for request := range m.queue {
-			request.reply(Result{Err: err})
-		}
-	}
-
-	m.mu.Lock()
-	// No goroutine may join background after this point.
-	m.queueDrained = true
-	m.stopDrainerLocked()
-	m.mu.Unlock()
-	m.background.Wait()
+	// Only a pool without workers leaves tasks behind.
+	m.ready.drain(err)
 	close(m.done)
 }

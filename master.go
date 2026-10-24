@@ -39,13 +39,12 @@ type Master struct {
 	recoveryPolicy         RecoveryPolicy
 	newWorker              func(*Master) (*Worker, error)
 
-	// direct hands synchronous calls to a worker; queue holds submissions.
-	direct chan *taskRequest
-	queue  chan *taskRequest
+	// ready holds tasks waiting for a worker, from Schedule and Submit.
+	ready readyQueue
 
-	// Producers hold admit's read lock while checking acceptDone and sending;
-	// shutdown takes the write lock before it closes the queue. Workers learn
-	// about shutdown from control messages instead.
+	// Producers hold admit's read lock while checking acceptDone and
+	// queuing; shutdown takes the write lock before it closes the queue.
+	// Workers learn about shutdown from control messages instead.
 	admit      sync.RWMutex
 	acceptDone chan struct{}
 
@@ -56,23 +55,20 @@ type Master struct {
 	live atomic.Int32
 	idle atomic.Int32
 
-	mu           sync.Mutex
-	workers      map[*Worker]struct{}
-	closing      bool
-	aborting     bool
-	queueDrained bool
+	mu       sync.Mutex
+	workers  map[*Worker]struct{}
+	closing  bool
+	aborting bool
 	// lost counts panicked workers not yet replaced. While it is positive,
 	// every new worker is a replacement and spends the restart budget.
 	lost          int
 	budget        restartBudget
 	recoveryStats RecoveryStats
 	healTimer     *time.Timer
-	drainStop     chan struct{}
 
-	running    sync.WaitGroup // worker goroutines
-	background sync.WaitGroup // drainers
-	metrics    taskMetrics
-	done       chan struct{}
+	running sync.WaitGroup // worker goroutines
+	metrics taskMetrics
+	done    chan struct{}
 }
 
 type poolFailure struct{ err error }
@@ -111,7 +107,6 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 		minWorkers: workers, maxWorkers: workers, idleTimeout: 10 * time.Second,
 		recoveryPolicy: RecoveryPolicy{MaxRestarts: 5, Window: time.Minute},
 		newWorker:      newPoolWorker,
-		direct:         make(chan *taskRequest),
 		acceptDone:     make(chan struct{}),
 		workers:        make(map[*Worker]struct{}),
 		done:           make(chan struct{}),
@@ -137,9 +132,7 @@ func NewMaster(opts ...MasterOption) (*Master, error) {
 	if m.logger == nil {
 		m.logger = slog.Default()
 	}
-	if m.queueCapacity > 0 {
-		m.queue = make(chan *taskRequest, m.queueCapacity)
-	}
+	m.ready.init(m.queueCapacity)
 
 	m.mu.Lock()
 	var err error
@@ -176,7 +169,19 @@ func (m *Master) ScheduleResult(ctx context.Context, task Task) Result {
 	if err := m.handoff(ctx, request); err != nil {
 		return Result{Err: err}
 	}
-	return <-request.result
+	if ctx.Done() == nil {
+		return <-request.result
+	}
+	select {
+	case result := <-request.result:
+		return result
+	case <-ctx.Done():
+		if m.ready.cancel(request) {
+			return Result{Err: ctx.Err()}
+		}
+		// A worker took the task first; it runs to completion.
+		return <-request.result
+	}
 }
 
 func (m *Master) handoff(ctx context.Context, request *taskRequest) error {
@@ -188,17 +193,10 @@ func (m *Master) handoff(ctx context.Context, request *taskRequest) error {
 	if err := m.admissionError(); err != nil {
 		return err
 	}
-	if err := m.grow(len(m.queue) + 1); err != nil {
+	if err := m.grow(int(m.ready.waiting.Load()) + 1); err != nil {
 		return err
 	}
-	select {
-	case m.direct <- request:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-m.acceptDone:
-		return ErrMasterStopped
-	}
+	return m.ready.push(request)
 }
 
 // admissionError must be called with admit's read lock held.
@@ -218,5 +216,5 @@ func (m *Master) admissionError() error {
 func (m *Master) scales() bool { return m.minWorkers < m.maxWorkers }
 
 func (m *Master) isInitialized() bool {
-	return m != nil && m.done != nil && m.direct != nil && m.acceptDone != nil
+	return m != nil && m.done != nil && m.ready.wake != nil && m.acceptDone != nil
 }

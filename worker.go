@@ -60,7 +60,7 @@ type Worker struct {
 	mu   sync.Mutex
 	task chan *taskRequest
 	name string
-	// owner is the master whose queues a pool worker serves; nil if standalone.
+	// owner is the master whose queue a pool worker serves; nil if standalone.
 	owner *Master
 
 	logger           *slog.Logger
@@ -80,12 +80,9 @@ type Worker struct {
 	// waiting to hand one over give up.
 	quit chan any
 
-	// The worker goroutine reads tasks from inbox (its own task channel, or
-	// the master's direct channel) and, in a pool, from backlog (the master's
-	// queue). ctrl carries at most one drain and one abort message; initial
-	// is the state the goroutine starts in.
-	inbox     <-chan *taskRequest
-	backlog   <-chan *taskRequest
+	// A standalone worker goroutine reads tasks from task, a pool worker from
+	// its master's readyQueue. ctrl carries at most one drain and one abort
+	// message; initial is the state the goroutine starts in.
 	ctrl      chan control
 	initial   workerState
 	drainOnce sync.Once
@@ -121,7 +118,7 @@ func NewWorker(opts ...WorkerOption) (*Worker, error) {
 	task := make(chan *taskRequest)
 	w := &Worker{
 		name: uuid.New().String(),
-		quit: make(chan any), task: task, inbox: task,
+		quit: make(chan any), task: task,
 		ctrl: make(chan control, 2), done: make(chan struct{}),
 	}
 	for _, opt := range opts {
@@ -139,13 +136,12 @@ func NewWorker(opts ...WorkerOption) (*Worker, error) {
 	return w, nil
 }
 
-// newPoolWorker creates a worker that serves m's queues. Master.Stop cancels
+// newPoolWorker creates a worker that serves m's queue. Master.Stop cancels
 // its task context through cancelTask.
 func newPoolWorker(m *Master) (*Worker, error) {
 	w := &Worker{
 		name: uuid.New().String(), owner: m,
 		quit: make(chan any), task: make(chan *taskRequest),
-		inbox: m.direct, backlog: m.queue,
 		ctrl: make(chan control, 2), done: make(chan struct{}),
 		logger: m.logger,
 	}
@@ -278,12 +274,12 @@ func (w *Worker) Stop() {
 	w.cancelTask()
 }
 
-// requestDrain asks the worker goroutine to finish its backlog and exit.
+// requestDrain asks the worker goroutine to finish queued tasks and exit.
 // Each request is sent at most once, so the two-slot ctrl never blocks.
 func (w *Worker) requestDrain() { w.drainOnce.Do(func() { w.ctrl <- controlDrain }) }
 
-// requestAbort asks the worker goroutine to answer its backlog without
-// running it and exit.
+// requestAbort asks the worker goroutine to exit without running queued
+// tasks; a pool's master answers them.
 func (w *Worker) requestAbort() { w.abortOnce.Do(func() { w.ctrl <- controlAbort }) }
 
 // cancelTask cancels the context of the running task, or of the next one

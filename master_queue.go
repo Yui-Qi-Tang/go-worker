@@ -14,9 +14,10 @@ var (
 	ErrInvalidQueueCapacity = errors.New("task queue capacity must be between 0 and 1024")
 )
 
-// WithQueueCapacity bounds tasks waiting for a worker; running tasks do not
-// count. Zero, the default, disables Submit and TrySubmit. The queue's memory
-// is allocated by NewMaster. Synchronous Schedule calls bypass this queue.
+// WithQueueCapacity bounds submitted tasks waiting for a worker; running tasks
+// do not count. Zero, the default, disables Submit and TrySubmit. The queue's
+// memory is allocated by NewMaster. Synchronous Schedule calls wait in the
+// same order but do not count against this capacity.
 func WithQueueCapacity(capacity int) MasterOption {
 	return func(m *Master) { m.queueCapacity = capacity }
 }
@@ -49,27 +50,30 @@ func (m *Master) submit(ctx context.Context, task Task, block bool) (*Future, er
 	if err := m.admissionError(); err != nil {
 		return nil, err
 	}
-	if m.queue == nil {
+	if m.ready.slots == nil {
 		return nil, ErrQueueDisabled
 	}
-	if err := m.grow(len(m.queue) + 1); err != nil {
+	if err := m.grow(int(m.ready.waiting.Load()) + 1); err != nil {
 		return nil, err
 	}
-	request := &taskRequest{task: task, future: newFuture()}
 	if !block {
 		select {
-		case m.queue <- request:
-			return request.future, nil
+		case m.ready.slots <- struct{}{}:
 		default:
 			return nil, ErrQueueFull
 		}
+	} else {
+		select {
+		case m.ready.slots <- struct{}{}:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-m.acceptDone:
+			return nil, ErrMasterStopped
+		}
 	}
-	select {
-	case m.queue <- request:
-		return request.future, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-m.acceptDone:
-		return nil, ErrMasterStopped
+	request := &taskRequest{task: task, future: newFuture()}
+	if err := m.ready.push(request); err != nil {
+		return nil, err
 	}
+	return request.future, nil
 }

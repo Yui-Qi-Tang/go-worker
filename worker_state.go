@@ -10,11 +10,11 @@ import (
 type workerState int
 
 const (
-	// stateServing runs tasks from the inbox and the backlog.
+	// stateServing runs tasks as they arrive.
 	stateServing workerState = iota
-	// stateDraining runs the remaining backlog, then exits.
+	// stateDraining runs a pool's remaining queued tasks, then exits.
 	stateDraining
-	// stateAborting answers the remaining backlog without running it, then exits.
+	// stateAborting exits without running queued tasks.
 	stateAborting
 	stateExited
 )
@@ -40,9 +40,9 @@ func (s workerState) next(c control) workerState {
 	}
 }
 
-// loop is the worker actor: each step selects only on the channels its
-// current state reads, and every received task is handled according to the
-// state at that moment.
+// loop is the worker actor: each step waits only for what its current state
+// reads, and every received task is handled according to the state at that
+// moment.
 func (w *Worker) loop(ctx context.Context, st *runState) {
 	var idle *time.Timer
 	if w.owner != nil && w.owner.scales() {
@@ -51,18 +51,43 @@ func (w *Worker) loop(ctx context.Context, st *runState) {
 	}
 	state := w.initial
 	for state != stateExited {
-		switch state {
-		case stateServing:
-			state = w.serving(ctx, st, idle)
-		case stateDraining:
-			state = w.draining(ctx, st)
-		case stateAborting:
-			state = w.aborting()
+		switch {
+		case state == stateServing && w.owner != nil:
+			state = w.poolServing(ctx, st, idle)
+		case state == stateServing:
+			state = w.serving(ctx, st)
+		case state == stateDraining && w.owner != nil:
+			state = w.poolDraining(ctx, st)
+		default:
+			// A standalone worker has nothing queued to drain, and an
+			// aborting pool worker's master answers the queued tasks.
+			state = stateExited
 		}
 	}
 }
 
-func (w *Worker) serving(ctx context.Context, st *runState, idle *time.Timer) workerState {
+// serving waits for a standalone worker's next task or control message.
+func (w *Worker) serving(ctx context.Context, st *runState) workerState {
+	select {
+	case c := <-w.ctrl:
+		return stateServing.next(c)
+	case request := <-w.task:
+		return w.handle(ctx, st, stateServing, request, nil)
+	}
+}
+
+// poolServing runs the next queued task, parking only when none is waiting.
+func (w *Worker) poolServing(ctx context.Context, st *runState, idle *time.Timer) workerState {
+	q := &w.owner.ready
+	if request, remaining := q.take(); request != nil {
+		if idle != nil && remaining > 0 {
+			// A backlog remains: add a worker even if no new task arrives.
+			// grow's error reports a pool with no workers, which cannot be
+			// true while this worker runs, so it is ignored.
+			_ = w.owner.grow(remaining)
+		}
+		return w.handle(ctx, st, stateServing, request, idle)
+	}
 	// Only a scaling pool counts idle workers; the count must drop before
 	// the worker runs a task or retires.
 	var idleC <-chan time.Time
@@ -76,20 +101,20 @@ func (w *Worker) serving(ctx context.Context, st *runState, idle *time.Timer) wo
 		}
 	}
 	select {
+	case <-q.wake:
+		notIdle()
+		return stateServing
 	case c := <-w.ctrl:
 		notIdle()
+		q.unpark()
 		return stateServing.next(c)
-	case request := <-w.inbox:
+	case <-q.closed:
 		notIdle()
-		return w.handle(ctx, st, stateServing, request, idle)
-	case request, ok := <-w.backlog:
-		notIdle()
-		if !ok {
-			return stateExited
-		}
-		return w.handle(ctx, st, stateServing, request, idle)
+		q.unpark()
+		return stateDraining
 	case <-idleC:
 		notIdle()
+		q.unpark()
 		if w.owner.retire(w) {
 			return stateExited
 		}
@@ -98,33 +123,21 @@ func (w *Worker) serving(ctx context.Context, st *runState, idle *time.Timer) wo
 	}
 }
 
-func (w *Worker) draining(ctx context.Context, st *runState) workerState {
-	if w.backlog == nil {
-		return stateExited
+// poolDraining runs queued tasks and exits once the queue is closed and empty.
+func (w *Worker) poolDraining(ctx context.Context, st *runState) workerState {
+	q := &w.owner.ready
+	if request := q.pop(); request != nil {
+		return w.handle(ctx, st, stateDraining, request, nil)
 	}
 	select {
 	case c := <-w.ctrl:
 		return stateDraining.next(c)
-	case request, ok := <-w.backlog:
-		if !ok {
-			return stateExited
+	case <-q.closed:
+		if request := q.pop(); request != nil {
+			return w.handle(ctx, st, stateDraining, request, nil)
 		}
-		return w.handle(ctx, st, stateDraining, request, nil)
-	}
-}
-
-// aborting answers what is left in the backlog. The master closes the
-// backlog once no producer can send, so the loop ends.
-func (w *Worker) aborting() workerState {
-	if w.backlog == nil {
 		return stateExited
 	}
-	request, ok := <-w.backlog
-	if !ok {
-		return stateExited
-	}
-	request.reply(Result{Err: w.rejection()})
-	return stateAborting
 }
 
 // handle runs or rejects a received task. A control message may have arrived
@@ -139,12 +152,6 @@ func (w *Worker) handle(ctx context.Context, st *runState, state workerState, re
 	if !w.runs(state) {
 		request.reply(Result{Err: w.rejection()})
 		return state
-	}
-	if idle != nil && len(w.backlog) > 0 {
-		// A backlog remains: add a worker even if no new task arrives.
-		// grow's error reports a pool with no workers, which cannot be
-		// true while this worker runs, so it is ignored.
-		_ = w.owner.grow(len(w.backlog))
 	}
 	w.execute(ctx, st, request)
 	if idle != nil {

@@ -26,19 +26,22 @@ func (m *Master) spawnLocked() error {
 	case m.closing:
 		w.initial = stateDraining
 	}
+	if m.poolDown.Load() != nil {
+		// Accept tasks again before Workers reports the new worker, so a
+		// caller that sees it is not rejected as if the pool were down.
+		m.ready.markDown(nil)
+		m.poolDown.Store(nil)
+	}
 	m.workers[w] = struct{}{}
 	m.live.Store(int32(len(m.workers)))
 	// The caller's worker, if any, is still counted, so running never reaches
 	// zero while a replacement is added during shutdown.
 	m.running.Add(1)
+	m.ready.addActive(1)
 	go func() {
 		defer m.running.Done()
 		w.run()
 	}()
-	if m.poolDown.Load() != nil {
-		m.poolDown.Store(nil)
-		m.stopDrainerLocked()
-	}
 	return nil
 }
 
@@ -84,6 +87,7 @@ func (m *Master) retire(w *Worker) bool {
 // workerExited runs on the exiting worker's goroutine. A panicked worker is
 // replaced unless the pool is aborting.
 func (m *Master) workerExited(w *Worker, panicked bool) {
+	m.ready.addActive(-1)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.removeLocked(w)
@@ -165,45 +169,13 @@ func (m *Master) scheduleHealLocked(d time.Duration) {
 	})
 }
 
-// markDownLocked starts a drainer when no worker is left, so callers get err
-// instead of waiting. A started worker clears it in spawnLocked.
+// markDownLocked makes the queue answer tasks with err when no worker is
+// left, so callers get err instead of waiting. A started worker clears it in
+// spawnLocked.
 func (m *Master) markDownLocked(err error) {
 	if len(m.workers) > 0 {
 		return
 	}
 	m.poolDown.Store(&poolFailure{err: err})
-	if m.drainStop != nil {
-		return
-	}
-	stop := make(chan struct{})
-	m.drainStop = stop
-	m.background.Add(1)
-	go func() {
-		defer m.background.Done()
-		m.drain(stop, err)
-	}()
-}
-
-func (m *Master) stopDrainerLocked() {
-	if m.drainStop != nil {
-		close(m.drainStop)
-		m.drainStop = nil
-	}
-}
-
-// drain answers every request with err while the pool has no worker.
-func (m *Master) drain(stop <-chan struct{}, err error) {
-	for {
-		select {
-		case <-stop:
-			return
-		case request := <-m.direct:
-			request.reply(Result{Err: err})
-		case request, ok := <-m.queue:
-			if !ok {
-				return
-			}
-			request.reply(Result{Err: err})
-		}
-	}
+	m.ready.markDown(err)
 }

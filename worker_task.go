@@ -11,6 +11,9 @@ type taskRequest struct {
 	task   Task
 	result chan Result
 	future *Future
+	// queued reports that the request waits in the master's readyQueue; it
+	// is guarded by the queue's mutex.
+	queued bool
 }
 
 func newTaskRequest(task Task) *taskRequest {
