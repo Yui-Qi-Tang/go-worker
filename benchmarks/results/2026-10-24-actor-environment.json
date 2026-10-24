@@ -1,10 +1,10 @@
 {
   "record_date": "2026-10-24",
-  "purpose": "attribute the d810da1 speedup to removing the shared acceptDone channel from worker select, and compare engines",
+  "purpose": "attribute the 38b3d04 speedup to removing the shared acceptDone channel from worker select, and compare engines",
   "trees": {
-    "before": "90ca605cd987fb285fed1a8781d865d8171ea43e",
-    "after": "d810da1673eaa8b019878ec4bf8c8a2016c265ce",
-    "shared": "d810da1 plus 2026-10-24-actor-ablation-shared.patch (not committed)"
+    "before": "7266c60996d31efe7630d3c6653d493de0ab6c86",
+    "after": "38b3d0433d11b2bed29920c06b7c9b734946aa66",
+    "shared": "38b3d04 plus 2026-10-24-actor-ablation-shared.patch (not committed)"
   },
   "go_version": "go version go1.27.3 darwin/arm64",
   "modules": [
@@ -42,5 +42,5 @@
   },
   "experiment_a": "go-worker only; trees run before, after, shared, shared, after, before twice; -count=5 per run, 20 samples per case",
   "experiment_b": "Noop, go-worker, 1 and 8 workers, -count=10, -cpuprofile; pprof top -cum text kept, binary profiles not kept",
-  "experiment_c": "all engines at d810da1; 20 rounds of -count=1 so engines alternate each round"
+  "experiment_c": "all engines at 38b3d04; 20 rounds of -count=1 so engines alternate each round"
 }

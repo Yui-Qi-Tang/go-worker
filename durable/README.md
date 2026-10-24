@@ -2,7 +2,8 @@
 
 Package `durable` persists jobs in a local bbolt database before dispatching
 them through a `worker.Master`, so accepted work survives a process restart.
-Import it as `"github.com/Yui-Qi-Tang/go-worker/durable"`.
+`Run` takes a `durable.Submitter`, which `*worker.Master` satisfies. Import it
+as `"github.com/Yui-Qi-Tang/go-worker/durable"`.
 
 A job is stored as data (ID, kind, version, payload, retry policy), never as a
 `Task`. Each attempt asks your `Builder` to rebuild a fresh Task from that data.

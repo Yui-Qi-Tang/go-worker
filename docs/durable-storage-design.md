@@ -46,6 +46,7 @@ flowchart TB
 | bbolt | 本機 key-value 交易、資料檔案、檔案鎖定 | Queue |
 
 Runner 是 `Queue.Run` 的職責，沒有另外的公開 Runner 型別。
+`Queue.Run` 只呼叫 `Submit`，參數型別是 durable 定義的 `Submitter` 介面，`*worker.Master` 符合它。
 Master 必須設定正數 `WithQueueCapacity`；Master 自行建立與監督自己的 Worker。
 Queue.Run 不會建立、關閉 Master，也不修改 Worker recovery policy。
 

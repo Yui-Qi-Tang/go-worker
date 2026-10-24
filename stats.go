@@ -65,9 +65,10 @@ func (w *Worker) Stats() WorkerStats {
 }
 
 // MasterStats reports the pool and its executions. Execution counters survive
-// worker replacement. Queued counts tasks waiting for a worker. Execution
-// counters and pool/queue fields are sampled separately, not as a global
-// atomic snapshot. Stopped means Stop was called or shutdown finished.
+// worker replacement. Queued counts submitted tasks waiting for a worker;
+// Schedule calls are not counted. Execution counters and pool/queue fields are
+// sampled separately, not as a global atomic snapshot. Stopped means Stop was
+// called or shutdown finished.
 type MasterStats struct {
 	TaskStats
 	Workers       int

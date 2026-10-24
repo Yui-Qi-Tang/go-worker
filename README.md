@@ -2,7 +2,7 @@
 
 A Go worker pool for tasks with an `Init → Run → Done` lifecycle: synchronous
 calls, a bounded asynchronous queue, structured results, graceful shutdown,
-optional replacement of workers that panic, and an optional durable job queue.
+replacement of workers that panic, and an optional durable job queue.
 The pool runs in one process and scales between a minimum and maximum number
 of workers (up to 1024) with demand.
 
@@ -347,9 +347,10 @@ phase; honoring the context is up to the task.
 | `Future.Wait(ctx)` / `Future.Done()` | Wait for the result; any number of callers may wait |
 
 The queue is off by default; enable it with `WithQueueCapacity(n)`, otherwise
-`Submit` returns `ErrQueueDisabled`. Capacity counts tasks not yet handed to a
-worker. Queued tasks start in submission order. A task must not block on
-submitting to its own full pool.
+`Submit` returns `ErrQueueDisabled`. Capacity counts submitted tasks not yet
+handed to a worker. Queued tasks start in submission order; `Schedule` calls
+wait in the same order but do not count against the capacity. A task must not
+block on submitting to its own full pool.
 
 **Results.** `Result.Err` holds a sentinel: `ErrWorkerTaskInit`,
 `ErrWorkerTaskRun`, `ErrWorkerTaskDone`, `ErrWorkerPanic`, or a lifecycle,
@@ -402,6 +403,7 @@ CI also vets and race-checks the [benchmark module](benchmarks/README.md). The
 | File | Responsibility |
 | --- | --- |
 | `worker.go`, `worker_task.go` | Worker lifecycle and task execution |
+| `worker_state.go` | Worker states and the task loop |
 | `task.go`, `result.go` | Task contract and results |
 | `master.go`, `master_queue.go` | Admission: synchronous calls and the bounded queue |
 | `ready_queue.go` | The task queue workers take from, shared by both admission paths |
