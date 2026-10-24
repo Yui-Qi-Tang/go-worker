@@ -1,0 +1,35 @@
+{
+  "record_date": "2026-10-24",
+  "purpose": "explain the 32-caller tail latency, measure the ready queue against the channel handoffs it replaced, and compare engines",
+  "trees": {
+    "before": "5a190883f28addfecb2dd5183dd6f76789c9b9d4",
+    "after": "d56f8b3b22dd1fab9c101d26d5c141ed5d42dfbf"
+  },
+  "benchmark_sources": "unchanged between the two trees",
+  "go_version": "go version go1.27.3 darwin/arm64",
+  "modules": [
+    "github.com/panjf2000/ants/v2 v2.12.1",
+    "github.com/alitto/pond/v2 v2.7.3"
+  ],
+  "host": {
+    "os": "Darwin",
+    "os_version": "26.7.1",
+    "arch": "arm64",
+    "cpu": "Apple M5 Max",
+    "physical_cpus": 18,
+    "logical_cpus": 18
+  },
+  "controlled_gomaxprocs": 8,
+  "load": {
+    "source": "other processes, including codebase-memory-mcp indexers",
+    "before_after_1min": [2.61, 6.33],
+    "before_after_5min": [3.26, 4.63],
+    "engines_1min": [5.73, 15.5],
+    "engines_5min": [4.49, 12.08],
+    "traces_1min": 2.45
+  },
+  "before_after_runs": "20 rounds, alternating which tree runs first; each round runs BenchmarkLatency go-worker (100000x), then BenchmarkPool and BenchmarkConcurrentSubmit go-worker with default benchtime, -count=1",
+  "engine_runs": "20 rounds on the after tree, rotating the engine order; each engine runs BenchmarkPool, BenchmarkConcurrentSubmit, and BenchmarkLatency with default benchtime, -count=1",
+  "traces": "3 runs per tree of BenchmarkLatency/Noop/workers=8/callers=32/go-worker with -test.trace, analyzed with golang.org/x/exp/trace; traces and analysis programs are not kept in the repository",
+  "diagnostics": "GOGC=off, -cpu=16, Submit instead of Schedule, and runtime.Gosched after each reply were run on the before tree or patched copies of it; only summaries are recorded"
+}

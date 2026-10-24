@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,7 +16,6 @@ import (
 
 	worker "github.com/Yui-Qi-Tang/go-worker"
 	bolt "go.etcd.io/bbolt"
-	"go.uber.org/zap"
 )
 
 // TestCrashHelper is executed in a subprocess and deliberately killed without
@@ -48,14 +48,8 @@ func TestCrashHelper(t *testing.T) {
 		<-time.After(time.Hour)
 		return
 	}
-	m, err := worker.NewMaster(worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
+	m, err := worker.NewMaster(worker.WithWorkers(1, 1), worker.WithQueueCapacity(1), worker.WithMasterLogger(slog.New(slog.DiscardHandler)))
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := m.AddWorkers(1); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
 		t.Fatal(err)
 	}
 	phasesFinished := make(chan struct{})

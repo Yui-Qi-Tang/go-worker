@@ -1,0 +1,60 @@
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8         	  100000	      1382 ns/op	      1125 p50-ns	    949667 p99-ns	   2097875 p99.9-ns	     249 B/op	       3 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8         	  100000	      1439 ns/op	      1333 p50-ns	    282208 p99-ns	   7269375 p99.9-ns	     249 B/op	       3 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8         	  100000	      1457 ns/op	      1334 p50-ns	    244750 p99-ns	   7460375 p99.9-ns	     249 B/op	       3 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8         	  100000	      1520 ns/op	      1541 p50-ns	    269000 p99-ns	   7855583 p99.9-ns	     249 B/op	       3 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8         	  100000	      1463 ns/op	      1334 p50-ns	    262750 p99-ns	   7700000 p99.9-ns	     249 B/op	       3 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8         	  100000	      1431 ns/op	      1291 p50-ns	    251583 p99-ns	   7700833 p99.9-ns	     249 B/op	       3 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8         	  100000	      1124 ns/op	      1000 p50-ns	    779875 p99-ns	   2163167 p99.9-ns	     249 B/op	       3 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8         	  100000	      1458 ns/op	      1333 p50-ns	    232458 p99-ns	   8426375 p99.9-ns	     249 B/op	       3 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8         	  100000	      1134 ns/op	      1000 p50-ns	    770291 p99-ns	   2252583 p99.9-ns	     249 B/op	       3 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8         	  100000	      1165 ns/op	       959.0 p50-ns	    809541 p99-ns	   2029208 p99.9-ns	     249 B/op	       3 allocs/op
+PASS

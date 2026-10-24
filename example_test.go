@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	worker "github.com/Yui-Qi-Tang/go-worker"
-	"go.uber.org/zap"
 )
 
 type exampleTask struct {
@@ -21,17 +21,11 @@ func (t exampleTask) Run(context.Context) error  { return t.err }
 func (t exampleTask) Done(context.Context) error { return nil }
 
 func ExampleMaster_Submit() {
-	m, err := worker.NewMaster(worker.WithQueueCapacity(4), worker.WithMasterLogger(zap.NewNop()))
+	m, err := worker.NewMaster(worker.WithWorkers(2, 2), worker.WithQueueCapacity(4), worker.WithMasterLogger(slog.New(slog.DiscardHandler)))
 	if err != nil {
 		panic(err)
 	}
 	defer m.Stop()
-	if err := m.AddWorkers(2); err != nil {
-		panic(err)
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		panic(err)
-	}
 
 	future, err := m.Submit(context.Background(), exampleTask{id: "job-1"})
 	if err != nil {
@@ -49,7 +43,7 @@ func ExampleMaster_Submit() {
 }
 
 func ExampleWorker_DoResult() {
-	w, err := worker.NewWorker(worker.WithLogger(zap.NewNop()))
+	w, err := worker.NewWorker(worker.WithLogger(slog.New(slog.DiscardHandler)))
 	if err != nil {
 		panic(err)
 	}
@@ -71,20 +65,14 @@ func (t examplePanicTask) Run(context.Context) error { panic("job failed") }
 
 func ExampleMaster_RecoveryStats() {
 	m, err := worker.NewMaster(
-		worker.WithWorkerRecovery(true),
+		worker.WithWorkers(1, 1),
 		worker.WithRecoveryPolicy(worker.RecoveryPolicy{MaxRestarts: 1, Window: time.Minute}),
-		worker.WithMasterLogger(zap.NewNop()),
+		worker.WithMasterLogger(slog.New(slog.DiscardHandler)),
 	)
 	if err != nil {
 		panic(err)
 	}
 	defer m.Stop()
-	if err := m.AddWorkers(1); err != nil {
-		panic(err)
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		panic(err)
-	}
 	for range 2 {
 		if err := m.Schedule(examplePanicTask{}); err != worker.ErrWorkerPanic {
 			panic(err)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	bolt "go.etcd.io/bbolt"
+	berrors "go.etcd.io/bbolt/errors"
 )
 
 func openQueue(t *testing.T) *Queue {
@@ -141,7 +142,7 @@ func TestFileOwnershipAndClosedEnqueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if other, err := Open(path); !errors.Is(err, bolt.ErrTimeout) {
+	if other, err := Open(path); !errors.Is(err, berrors.ErrTimeout) {
 		if other != nil {
 			if closeErr := other.Close(); closeErr != nil {
 				t.Error(closeErr)

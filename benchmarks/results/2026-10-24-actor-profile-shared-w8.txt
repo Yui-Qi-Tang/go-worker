@@ -1,0 +1,45 @@
+# go tool pprof -top -cum, shared tree, Noop workers=8, -count=10
+pkg: example.com/go-worker-benchmarks
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	       862.5 ns/op	   1159361 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	       553.0 ns/op	   1808177 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	       548.0 ns/op	   1824655 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	       542.0 ns/op	   1845099 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	       550.1 ns/op	   1817763 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	       541.8 ns/op	   1845847 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	       541.6 ns/op	   1846415 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	       802.3 ns/op	   1246442 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	       576.7 ns/op	   1733970 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	       825.7 ns/op	   1211080 tasks/s	     256 B/op	       3 allocs/op
+ok  	example.com/go-worker-benchmarks	0.862s
+File: shared.test
+Type: cpu
+Time: 2026-10-24 02:39:05 CST
+Duration: 802.30ms, Total samples = 1620ms (201.92%)
+Showing nodes accounting for 1560ms, 96.30% of 1620ms total
+Showing top 25 nodes out of 68
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      990ms 61.11%  runtime.selectgo
+         0     0%     0%      840ms 51.85%  github.com/Yui-Qi-Tang/go-worker.(*Master).spawnLocked.func1
+         0     0%     0%      840ms 51.85%  github.com/Yui-Qi-Tang/go-worker.(*Worker).loop
+         0     0%     0%      840ms 51.85%  github.com/Yui-Qi-Tang/go-worker.(*Worker).run
+         0     0%     0%      840ms 51.85%  github.com/Yui-Qi-Tang/go-worker.(*Worker).serving
+         0     0%     0%      780ms 48.15%  runtime.lock (inline)
+         0     0%     0%      780ms 48.15%  runtime.lock2
+         0     0%     0%      780ms 48.15%  runtime.lockWithRank (inline)
+         0     0%     0%      750ms 46.30%  runtime.sellock
+     640ms 39.51% 39.51%      640ms 39.51%  runtime.usleep
+     580ms 35.80% 75.31%      580ms 35.80%  runtime.pthread_cond_wait
+         0     0% 75.31%      580ms 35.80%  runtime.semasleep
+         0     0% 75.31%      550ms 33.95%  runtime.mcall
+         0     0% 75.31%      550ms 33.95%  runtime.park_m
+         0     0% 75.31%      520ms 32.10%  runtime.schedule
+         0     0% 75.31%      460ms 28.40%  runtime.findRunnable
+         0     0% 75.31%      350ms 21.60%  runtime.osyield (inline)
+     340ms 20.99% 96.30%      340ms 20.99%  runtime.pthread_cond_signal
+         0     0% 96.30%      340ms 20.99%  runtime.semawakeup
+         0     0% 96.30%      290ms 17.90%  runtime.runqgrab
+         0     0% 96.30%      290ms 17.90%  runtime.runqsteal
+         0     0% 96.30%      290ms 17.90%  runtime.stealWork
+         0     0% 96.30%      270ms 16.67%  runtime.unlock (inline)
+         0     0% 96.30%      270ms 16.67%  runtime.unlock2
+         0     0% 96.30%      270ms 16.67%  runtime.unlock2Wake

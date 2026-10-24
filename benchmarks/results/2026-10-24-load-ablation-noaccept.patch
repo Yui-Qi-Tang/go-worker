@@ -1,0 +1,17 @@
+--- latbase/master.go	2026-10-24 01:54:11
++++ latnoaccept/master.go	2026-10-24 03:18:57
+@@ -191,13 +191,12 @@
+ 	if err := m.grow(len(m.queue) + 1); err != nil {
+ 		return err
+ 	}
++	// Ablation for measurement only: no acceptDone in the sender's select.
+ 	select {
+ 	case m.direct <- request:
+ 		return nil
+ 	case <-ctx.Done():
+ 		return ctx.Err()
+-	case <-m.acceptDone:
+-		return ErrMasterStopped
+ 	}
+ }
+ 

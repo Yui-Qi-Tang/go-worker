@@ -38,7 +38,7 @@ var (
 	ErrRunning = errors.New("durable queue running")
 	// ErrSchema means the file uses an unsupported durable schema.
 	ErrSchema = errors.New("unsupported durable schema")
-	// ErrInvalidRunner identifies an invalid Master, Builder, or concurrency.
+	// ErrInvalidRunner identifies an invalid pool, Builder, concurrency, or option.
 	ErrInvalidRunner = errors.New("invalid durable runner")
 )
 

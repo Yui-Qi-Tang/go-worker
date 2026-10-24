@@ -3,15 +3,13 @@ package worker
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 type functionTask struct {
@@ -47,7 +45,7 @@ func testContext(t *testing.T) context.Context {
 
 func newFeatureMaster(t *testing.T, count int, opts ...MasterOption) *Master {
 	t.Helper()
-	m, err := NewMaster(append([]MasterOption{WithMasterLogger(zap.NewNop())}, opts...)...)
+	m, err := NewMaster(append([]MasterOption{WithMasterLogger(nopLogger()), WithWorkers(count, count)}, opts...)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,15 +57,19 @@ func newFeatureMaster(t *testing.T, count int, opts ...MasterOption) *Master {
 			t.Errorf("master cleanup: %v", err)
 		}
 	})
-	if err := m.AddWorkers(count); err != nil {
-		t.Fatal(err)
-	}
-	if count > 0 {
-		if err := m.WakeAllWorkersUp(); err != nil {
-			t.Fatal(err)
-		}
-	}
 	return m
+}
+
+// currentWorker returns one of m's running workers.
+func currentWorker(t *testing.T, m *Master) *Worker {
+	t.Helper()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for w := range m.workers {
+		return w
+	}
+	t.Fatal("master has no workers")
+	return nil
 }
 
 func awaitSignal(t *testing.T, ch <-chan struct{}) {
@@ -110,11 +112,9 @@ func submitTask(t *testing.T, m *Master, task Task) *Future {
 
 func TestScheduleContextCanceledBeforeHandoffReturnsWorker(t *testing.T) {
 	m := newFeatureMaster(t, 1)
-	w := currentWorker(t, m)
 	gate := newGatedTask(t)
 	first := make(chan error, 1)
-	// Direct Do occupies the worker while it is still available in workerQueue.
-	go func() { first <- w.Do(gate) }()
+	go func() { first <- m.Schedule(gate) }()
 	awaitSignal(t, gate.entered)
 
 	var runs int32
@@ -194,7 +194,7 @@ func TestScheduleCancellationRaceHasExactlyOneOutcome(t *testing.T) {
 }
 
 func TestWorkerShutdownWaitsForActiveTaskAndHandlesUnstartedWorker(t *testing.T) {
-	w, err := NewWorker(WithLogger(zap.NewNop()))
+	w, err := NewWorker(WithLogger(nopLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestWorkerShutdownWaitsForActiveTaskAndHandlesUnstartedWorker(t *testing.T)
 		t.Fatalf("stats=%+v", got)
 	}
 
-	unstarted, err := NewWorker(WithLogger(zap.NewNop()))
+	unstarted, err := NewWorker(WithLogger(nopLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,11 +240,11 @@ func TestWorkerShutdownWaitsForActiveTaskAndHandlesUnstartedWorker(t *testing.T)
 	}
 }
 
-func TestMasterShutdownRejectsWaitingHandoffAndWaitsForDirectTask(t *testing.T) {
+func TestMasterShutdownRejectsWaitingHandoffAndWaitsForRunningTask(t *testing.T) {
 	m := newFeatureMaster(t, 1)
 	gate := newGatedTask(t)
 	direct := make(chan error, 1)
-	go func() { direct <- currentWorker(t, m).Do(gate) }()
+	go func() { direct <- m.Schedule(gate) }()
 	awaitSignal(t, gate.entered)
 	waiting := make(chan error, 1)
 	go func() { waiting <- m.Schedule(phaseErrorTask{}) }()
@@ -257,7 +257,7 @@ func TestMasterShutdownRejectsWaitingHandoffAndWaitsForDirectTask(t *testing.T) 
 		t.Fatalf("pending handoff=%v", got)
 	}
 	if got := m.Wait(ctx); got != context.Canceled {
-		t.Fatalf("Wait before direct task returns=%v", got)
+		t.Fatalf("Wait before running task returns=%v", got)
 	}
 	gate.unblock()
 	if got := awaitError(t, direct); got != nil {
@@ -287,7 +287,7 @@ func TestResultsPreservePhaseCausesAndPanicDetails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w, err := NewWorker(WithLogger(zap.NewNop()))
+			w, err := NewWorker(WithLogger(nopLogger()))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -310,7 +310,7 @@ func TestResultsPreservePhaseCausesAndPanicDetails(t *testing.T) {
 }
 
 func TestGoexitStillCompletesFutureAndAllowsRecovery(t *testing.T) {
-	m := newFeatureMaster(t, 1, WithWorkerRecovery(true), WithQueueCapacity(2))
+	m := newFeatureMaster(t, 1, WithQueueCapacity(2))
 	f := submitTask(t, m, functionTask{run: func() error { runtime.Goexit(); return nil }})
 	if result := awaitResult(t, f); result.Err != ErrWorkerPanic || result.Phase != PhaseRun || result.PanicStack == "" {
 		t.Fatalf("result=%+v", result)
@@ -324,25 +324,25 @@ func TestGoexitStillCompletesFutureAndAllowsRecovery(t *testing.T) {
 }
 
 func TestLoggerAndCumulativeStatsSurviveRecovery(t *testing.T) {
-	core, logs := observer.New(zap.InfoLevel)
-	logger := zap.New(core)
-	m := newFeatureMaster(t, 1, WithWorkerRecovery(true), WithMasterLogger(logger))
+	logs := &recordingHandler{}
+	logger := slog.New(logs)
+	m := newFeatureMaster(t, 1, WithMasterLogger(logger))
 	old := currentWorker(t, m)
 	cause := errors.New("failure")
 	for _, task := range []Task{phaseErrorTask{}, phaseErrorTask{runErr: cause}, functionTask{run: func() error { panic("failed") }}, phaseErrorTask{}} {
 		m.ScheduleResult(testContext(t), task)
 	}
+	replacement := currentWorker(t, m)
 	if err := m.Shutdown(testContext(t)); err != nil {
 		t.Fatal(err)
 	}
 	if got := m.Stats().TaskStats; got != (TaskStats{Started: 4, Succeeded: 2, Failed: 1, Panicked: 1}) {
 		t.Fatalf("stats=%+v", got)
 	}
-	replacement := currentWorker(t, m)
 	if replacement == old || replacement.logger != logger {
 		t.Fatal("replacement did not inherit logger")
 	}
-	if got := logs.FilterMessage(workerEventStart).Len(); got != 2 {
+	if got := len(logs.messages(workerEventStart)); got != 2 {
 		t.Fatalf("start log count=%d", got)
 	}
 	if got := replacement.Stats().Succeeded; got != 1 {
@@ -429,7 +429,7 @@ func TestAsyncDispatcherUsesMultipleWorkers(t *testing.T) {
 }
 
 func TestShutdownDrainsAcceptedQueueAcrossPanic(t *testing.T) {
-	m := newFeatureMaster(t, 1, WithQueueCapacity(3), WithWorkerRecovery(true))
+	m := newFeatureMaster(t, 1, WithQueueCapacity(3))
 	gate := newGatedTask(t)
 	first := submitTask(t, m, gate)
 	awaitSignal(t, gate.entered)
@@ -521,11 +521,18 @@ func TestNewAPIValidation(t *testing.T) {
 	if w, err := NewWorker(WithLogger(nil)); w != nil || err != ErrInvalidLogger {
 		t.Fatalf("nil logger=%v,%v", w, err)
 	}
-	if m, err := NewMaster(WithWorkerRecovery(true), WithMasterLogger(nil)); m != nil || err != ErrInvalidLogger {
+	if m, err := NewMaster(WithMasterLogger(nil)); m != nil || err != ErrInvalidLogger {
 		t.Fatalf("nil master logger=%v,%v", m, err)
 	}
-	if m, err := NewMaster(WithQueueCapacity(-1)); m != nil || err != ErrInvalidQueueCapacity {
-		t.Fatalf("negative capacity=%v,%v", m, err)
+	for _, capacity := range []int{-1, maxPoolSize + 1} {
+		if m, err := NewMaster(WithQueueCapacity(capacity)); m != nil || err != ErrInvalidQueueCapacity {
+			t.Fatalf("capacity %d=%v,%v", capacity, m, err)
+		}
+	}
+	for _, workers := range [][2]int{{-1, 1}, {0, 0}, {2, 1}, {0, maxPoolSize + 1}} {
+		if m, err := NewMaster(WithWorkers(workers[0], workers[1])); m != nil || err != ErrInvalidWorkers {
+			t.Fatalf("workers %v=%v,%v", workers, m, err)
+		}
 	}
 	m := newFeatureMaster(t, 1)
 	if _, err := m.TrySubmit(phaseErrorTask{}); err != ErrQueueDisabled {
@@ -552,7 +559,7 @@ func TestNewAPIValidation(t *testing.T) {
 }
 
 func TestConcurrentAdmissionAndShutdown(t *testing.T) {
-	m := newFeatureMaster(t, 4, WithQueueCapacity(8), WithWorkerRecovery(true))
+	m := newFeatureMaster(t, 4, WithQueueCapacity(8))
 	const callers = 80
 	start := make(chan struct{})
 	results := make(chan error, callers)
@@ -605,12 +612,15 @@ func (c *observedContext) Done() <-chan struct{} {
 	return c.Context.Done()
 }
 
-func TestWaitingTasksFinishWhenLastWorkerPanicsWithoutRecovery(t *testing.T) {
-	m := newFeatureMaster(t, 1, WithQueueCapacity(1))
+func TestWaitingTasksFailWhenRestartLimitLeavesNoWorker(t *testing.T) {
+	m := newFeatureMaster(t, 1, WithQueueCapacity(1), recoveryLimit(1))
+	if got := m.Schedule(functionTask{run: func() error { panic("replaced") }}); got != ErrWorkerPanic {
+		t.Fatalf("first panic=%v", got)
+	}
 	gate := newGatedTask(t)
-	first := make(chan error, 1)
+	last := make(chan error, 1)
 	go func() {
-		first <- m.Schedule(functionTask{run: func() error { _ = gate.Run(context.Background()); panic("last worker") }})
+		last <- m.Schedule(functionTask{run: func() error { _ = gate.Run(context.Background()); panic("last worker") }})
 	}()
 	awaitSignal(t, gate.entered)
 	base, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -621,14 +631,17 @@ func TestWaitingTasksFinishWhenLastWorkerPanicsWithoutRecovery(t *testing.T) {
 	awaitSignal(t, ctx.observed)
 	queued := submitTask(t, m, phaseErrorTask{})
 	gate.unblock()
-	if got := awaitError(t, first); got != ErrWorkerPanic {
-		t.Fatalf("first=%v", got)
+	if got := awaitError(t, last); got != ErrWorkerPanic {
+		t.Fatalf("last=%v", got)
 	}
-	if got := awaitError(t, waiting); got != ErrMasterWorkerPoolIsEmpty {
+	if got := awaitError(t, waiting); got != ErrRecoveryExhausted {
 		t.Fatalf("waiting=%v", got)
 	}
-	if got := awaitResult(t, queued).Err; got != ErrMasterWorkerPoolIsEmpty {
+	if got := awaitResult(t, queued).Err; got != ErrRecoveryExhausted {
 		t.Fatalf("queued=%v", got)
+	}
+	if _, err := m.TrySubmit(phaseErrorTask{}); err != ErrRecoveryExhausted {
+		t.Fatalf("new submission=%v", err)
 	}
 	if err := m.Shutdown(testContext(t)); err != nil {
 		t.Fatal(err)
@@ -670,7 +683,7 @@ func TestBlockedSubmitResumesWhenQueueHasSpace(t *testing.T) {
 }
 
 func TestConcurrentStopAndShutdownCompleteOnce(t *testing.T) {
-	m := newFeatureMaster(t, 2, WithQueueCapacity(2), WithWorkerRecovery(true))
+	m := newFeatureMaster(t, 2, WithQueueCapacity(2))
 	gate := newGatedTask(t)
 	active := submitTask(t, m, gate)
 	awaitSignal(t, gate.entered)
@@ -707,30 +720,9 @@ func TestConcurrentStopAndShutdownCompleteOnce(t *testing.T) {
 	}
 }
 
-func TestShutdownUnstartedPool(t *testing.T) {
-	m, err := NewMaster(WithMasterLogger(zap.NewNop()), WithWorkerRecovery(true), WithQueueCapacity(1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Stop()
-	if err := m.AddWorkers(2); err != nil {
-		t.Fatal(err)
-	}
-	f := submitTask(t, m, phaseErrorTask{})
-	if err := m.Shutdown(testContext(t)); err != nil {
-		t.Fatal(err)
-	}
-	if got := awaitResult(t, f).Err; got != ErrWorkerNotStarted {
-		t.Fatalf("result=%v", got)
-	}
-	if err := m.Shutdown(testContext(t)); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestLegacyNilPanicStillCompletesTask(t *testing.T) {
 	t.Setenv("GODEBUG", "panicnil=1")
-	m := newFeatureMaster(t, 1, WithQueueCapacity(1), WithWorkerRecovery(true))
+	m := newFeatureMaster(t, 1, WithQueueCapacity(1))
 	f := submitTask(t, m, nilPanicTask{})
 	if r := awaitResult(t, f); r.Err != ErrWorkerPanic || r.Phase != PhaseRun {
 		t.Fatalf("result=%+v", r)
@@ -741,8 +733,8 @@ func TestLegacyNilPanicStillCompletesTask(t *testing.T) {
 }
 
 func TestWorkerLogsTaskEventsWhenInfoEnabled(t *testing.T) {
-	core, logs := observer.New(zap.InfoLevel)
-	w, err := NewWorker(WithName("logged-worker"), WithLogger(zap.New(core)))
+	logs := &recordingHandler{}
+	w, err := NewWorker(WithName("logged-worker"), WithLogger(slog.New(logs)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -754,11 +746,12 @@ func TestWorkerLogsTaskEventsWhenInfoEnabled(t *testing.T) {
 		t.Fatal(err)
 	}
 	for event, key := range map[string]string{workerEventReceived: "task_name", workerEventDone: "task_id"} {
-		entries := logs.FilterMessage(event).AllUntimed()
-		if len(entries) != 1 {
-			t.Fatalf("%s log count=%d, want 1", event, len(entries))
+		records := logs.messages(event)
+		if len(records) != 1 {
+			t.Fatalf("%s log count=%d, want 1", event, len(records))
 		}
-		fields := entries[0].ContextMap()
+		fields := map[string]string{}
+		records[0].Attrs(func(a slog.Attr) bool { fields[a.Key] = a.Value.String(); return true })
 		if fields["worker"] != "logged-worker" || fields[key] != "logged-task" {
 			t.Fatalf("%s fields=%v", event, fields)
 		}
@@ -776,3 +769,33 @@ func (t countingTask) Run(context.Context) error {
 }
 func (t countingTask) Done(context.Context) error { return nil }
 func (t countingTask) ID() string                 { return "counting-task" }
+
+func nopLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
+
+// recordingHandler keeps every log record for assertions.
+type recordingHandler struct {
+	mu      sync.Mutex
+	records []slog.Record
+}
+
+func (h *recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h *recordingHandler) WithAttrs([]slog.Attr) slog.Handler       { return h }
+func (h *recordingHandler) WithGroup(string) slog.Handler            { return h }
+func (h *recordingHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.records = append(h.records, r.Clone())
+	return nil
+}
+
+func (h *recordingHandler) messages(msg string) []slog.Record {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var out []slog.Record
+	for _, r := range h.records {
+		if r.Message == msg {
+			out = append(out, r)
+		}
+	}
+	return out
+}

@@ -32,19 +32,12 @@ func TestWorkerDoRejectsNilTaskWithoutStoppingWorker(t *testing.T) {
 	}
 }
 
-func TestMasterDispatchRejectsNilTaskWithoutConsumingWorker(t *testing.T) {
-	ms, err := NewMaster()
+func TestMasterScheduleRejectsNilTaskWithoutConsumingWorker(t *testing.T) {
+	ms, err := NewMaster(WithWorkers(1, 1))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer ms.Stop()
-
-	if err := ms.AddWorkers(1); err != nil {
-		t.Fatal(err)
-	}
-	if err := ms.WakeAllWorkersUp(); err != nil {
-		t.Fatal(err)
-	}
 
 	nilTasks := []Task{
 		nil,
@@ -53,12 +46,12 @@ func TestMasterDispatchRejectsNilTaskWithoutConsumingWorker(t *testing.T) {
 
 	for _, task := range nilTasks {
 		if got := dispatchWithTimeout(t, ms, task); got != ErrWorkerNilTask {
-			t.Fatalf("Dispatch(nil task) error = %v, want %v", got, ErrWorkerNilTask)
+			t.Fatalf("Schedule(nil task) error = %v, want %v", got, ErrWorkerNilTask)
 		}
 	}
 
 	if got := dispatchWithTimeout(t, ms, phaseErrorTask{id: "after-nil"}); got != nil {
-		t.Fatalf("Dispatch() after nil task error = %v, want nil", got)
+		t.Fatalf("Schedule() after nil task error = %v, want nil", got)
 	}
 }
 

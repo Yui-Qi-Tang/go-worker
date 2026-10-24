@@ -2,8 +2,9 @@
 
 A Go worker pool for tasks with an `Init → Run → Done` lifecycle: synchronous
 calls, a bounded asynchronous queue, structured results, graceful shutdown,
-optional replacement of workers that panic, and an optional durable job queue.
-The pool runs in one process and holds up to 256 workers.
+replacement of workers that panic, and an optional durable job queue.
+The pool runs in one process and scales between a minimum and maximum number
+of workers (up to 1024) with demand.
 
 ## Contents
 
@@ -55,17 +56,11 @@ func (t printTask) Run(context.Context) error {
 func (t printTask) Done(context.Context) error { return nil }
 
 func run() error {
-	m, err := worker.NewMaster(worker.WithQueueCapacity(4))
+	m, err := worker.NewMaster(worker.WithWorkers(2, 2), worker.WithQueueCapacity(4))
 	if err != nil {
 		return err
 	}
 	defer m.Stop()
-	if err := m.AddWorkers(2); err != nil {
-		return err
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		return err
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -100,8 +95,7 @@ It prints `job-0` through `job-7` in any order.
 
 ## Examples
 
-The examples use two small helpers. `taskFunc` turns a function into a
-`worker.Task`; `newPool` builds a started pool.
+The examples use `taskFunc`, which turns a function into a `worker.Task`.
 
 ```go
 type taskFunc struct {
@@ -113,21 +107,21 @@ func (t taskFunc) ID() string                    { return t.id }
 func (t taskFunc) Init(context.Context) error    { return nil }
 func (t taskFunc) Run(ctx context.Context) error { return t.run(ctx) }
 func (t taskFunc) Done(context.Context) error    { return nil }
+```
 
-func newPool(workers, queue int, opts ...worker.MasterOption) (*worker.Master, error) {
-	m, err := worker.NewMaster(append(opts, worker.WithQueueCapacity(queue))...)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.AddWorkers(workers); err != nil {
-		m.Stop()
-		return nil, err
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		m.Stop()
-		return nil, err
-	}
-	return m, nil
+### Size the pool for bursty load
+
+`WithWorkers(min, max)` starts `min` workers. When tasks wait and no worker is
+idle, the pool adds workers up to `max`; workers idle for the idle timeout
+retire down to `min`. Equal values give a fixed pool.
+
+```go
+func newBurstyPool() (*worker.Master, error) {
+	return worker.NewMaster(
+		worker.WithWorkers(2, 64),              // 2 when quiet, up to 64 under load
+		worker.WithIdleTimeout(30*time.Second), // shrink after 30s without work
+		worker.WithQueueCapacity(256),
+	)
 }
 ```
 
@@ -248,16 +242,17 @@ func stopPool(m *worker.Master) error {
 
 Submit the poller with `m.Submit(ctx, taskFunc{id: "poller", run: pollUntilStopped})`.
 
-### Replace workers that panic
+### Limit restarts of workers that panic
 
-With recovery enabled, a worker that panics is replaced for later tasks. The
-failed task still gets `ErrWorkerPanic`, and each worker slot has a restart
-budget.
+A worker that panics is always replaced; the failed task still gets
+`ErrWorkerPanic`. `RecoveryPolicy` limits replacements across the pool, so
+tasks that keep panicking cannot restart workers in a tight loop.
 
 ```go
 func newResilientPool() (*worker.Master, error) {
-	return newPool(4, 16,
-		worker.WithWorkerRecovery(true),
+	return worker.NewMaster(
+		worker.WithWorkers(4, 4),
+		worker.WithQueueCapacity(16),
 		worker.WithRecoveryPolicy(worker.RecoveryPolicy{MaxRestarts: 3, Window: time.Minute}),
 	)
 }
@@ -271,19 +266,18 @@ func reportRecovery(m *worker.Master) {
 }
 ```
 
-When every slot is gone, new work gets `ErrRecoveryExhausted` or
-`ErrRecoveryFailed`; add workers with `AddWorkers` and `WakeAllWorkersUp`.
+Over the limit, a lost worker is not replaced until the window allows it. If no
+worker is left meanwhile, calls get `ErrRecoveryExhausted` (or
+`ErrRecoveryFailed` if a worker could not be created) until the master restores
+one on its own.
 
 ### Log and observe the pool
 
 ```go
 func newLoggedPool() (*worker.Master, error) {
-	logger, err := zap.NewProduction()
-	if err != nil {
-		return nil, err
-	}
-	// Call logger.Sync() when you are done with the pool.
-	return newPool(2, 8, worker.WithMasterLogger(logger))
+	// Log warnings and errors as JSON; per-task Info events are skipped.
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	return worker.NewMaster(worker.WithWorkers(2, 8), worker.WithQueueCapacity(8), worker.WithMasterLogger(logger))
 }
 
 func logStats(m *worker.Master) {
@@ -353,9 +347,10 @@ phase; honoring the context is up to the task.
 | `Future.Wait(ctx)` / `Future.Done()` | Wait for the result; any number of callers may wait |
 
 The queue is off by default; enable it with `WithQueueCapacity(n)`, otherwise
-`Submit` returns `ErrQueueDisabled`. Capacity counts tasks not yet handed to a
-worker. Queued tasks start in submission order. A task must not block on
-submitting to its own full pool.
+`Submit` returns `ErrQueueDisabled`. Capacity counts submitted tasks not yet
+handed to a worker. Queued tasks start in submission order; `Schedule` calls
+wait in the same order but do not count against the capacity. A task must not
+block on submitting to its own full pool.
 
 **Results.** `Result.Err` holds a sentinel: `ErrWorkerTaskInit`,
 `ErrWorkerTaskRun`, `ErrWorkerTaskDone`, `ErrWorkerPanic`, or a lifecycle,
@@ -374,14 +369,20 @@ last ID read.
 A `Shutdown` deadline limits only the wait; draining continues. Call `Shutdown`
 from the code that owns the pool, not from one of its tasks.
 
-**Recovery.** Off by default. With `WithWorkerRecovery(true)`, each worker slot
-may be replaced 5 times per rolling minute unless `WithRecoveryPolicy` says
-otherwise. A slot whose budget runs out, or whose replacement fails, is removed
-and does not come back on its own.
+**Pool size.** The master creates its own workers. `WithWorkers(min, max)`
+defaults to a fixed pool of `GOMAXPROCS` workers; `WithIdleTimeout` (default
+10 seconds) applies when `min < max`. Both limits, and the queue capacity, are
+at most 1024. `Workers()` reports how many run now.
 
-**Logging and stats.** `WithLogger` sets one worker's logger; `WithMasterLogger`
-sets it for workers created by `AddWorkers`, and replacements inherit it. You
-own the logger and its final `Sync`. `Stats()` counters satisfy
+**Recovery.** A worker that panics is replaced. At most 5 replacements happen in
+any rolling minute across the pool unless `WithRecoveryPolicy` says otherwise;
+while a panicked worker is unreplaced, workers added for load count against the
+same limit. When the window allows, the master restores the pool by itself.
+
+**Logging and stats.** Logging uses `log/slog`. `WithLogger` sets a standalone
+worker's logger and `WithMasterLogger` the logger for the master's workers; both
+default to `slog.Default()`. Each task logs `received-task` and `done` at Info
+and failures at Error. `Stats()` counters satisfy
 `Started = Succeeded + Failed + Panicked + InFlight`.
 
 **Durable jobs.** See the [durable package](durable/README.md) and its
@@ -402,11 +403,13 @@ CI also vets and race-checks the [benchmark module](benchmarks/README.md). The
 | File | Responsibility |
 | --- | --- |
 | `worker.go`, `worker_task.go` | Worker lifecycle and task execution |
+| `worker_state.go` | Worker states and the task loop |
 | `task.go`, `result.go` | Task contract and results |
-| `master.go`, `master_pool.go` | Dispatch and pool membership |
-| `master_queue.go`, `future.go` | Bounded queue and futures |
+| `master.go`, `master_queue.go` | Admission: synchronous calls and the bounded queue |
+| `ready_queue.go` | The task queue workers take from, shared by both admission paths |
+| `master_pool.go` | Worker supervision: scaling and replacement |
 | `master_lifecycle.go` | Stop, shutdown, and waiting |
-| `master_recovery.go`, `recovery.go` | Worker replacement and restart budgets |
+| `recovery.go`, `future.go` | Restart limits and futures |
 | `stats.go` | Execution counters |
 | `durable/` | Persistent jobs |
 
@@ -420,8 +423,14 @@ follows semantic versioning. Compared with unreleased checkouts under
 - passes the worker's context to `Init`, `Run`, `Done`, and the durable `Builder`;
 - hides `Master` and `Worker` internals and removes raw `Worker.Task` sends;
   `Worker.Name()` replaces the `Name` field;
-- replaces `GetWorkers`/`GetPoolSize` with `Workers`, removes `Dispatch`, and
-  makes `RecoveryWorker` and `WithRecovery` internal;
+- lets the master create and supervise its own workers: `WithWorkers(min, max)`
+  and `WithIdleTimeout` replace `AddWorker`, `AddWorkers`, and
+  `WakeAllWorkersUp`, and `Workers` replaces `GetWorkers`/`GetPoolSize`;
+- always replaces panicked workers under a pool-wide `RecoveryPolicy`, so
+  `WithWorkerRecovery` and `RecoveryWorker` are removed;
+- removes the `Dispatch` alias and renames the worker's `Option` to `WorkerOption`;
+- logs through `log/slog` instead of zap: `WithLogger` and `WithMasterLogger`
+  take a `*slog.Logger`;
 - migrates durable queue files to schema version 2 when opened.
 
 ## License
