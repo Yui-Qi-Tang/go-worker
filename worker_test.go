@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"log"
 	"testing"
@@ -26,7 +27,7 @@ func (tt testTask) ID() string {
 	return tt.String()
 }
 
-func (tt testTask) Init() error {
+func (tt testTask) Init(context.Context) error {
 	log.Println(tt, "init...")
 
 	return [...]error{
@@ -36,7 +37,7 @@ func (tt testTask) Init() error {
 	}[tt]
 }
 
-func (tt testTask) Run() error {
+func (tt testTask) Run(context.Context) error {
 	log.Println(tt, "run...")
 
 	return [...]error{
@@ -45,56 +46,13 @@ func (tt testTask) Run() error {
 	}[tt]
 }
 
-func (tt testTask) Done() error {
+func (tt testTask) Done(context.Context) error {
 	log.Println(tt, "done...")
 
 	return [...]error{
 		nil,
 		errors.New("normal task with error"),
 	}[tt]
-}
-
-func TestLowLevelWorker(t *testing.T) {
-
-	testcases := []struct { // task case form
-		task   testTask
-		answer string
-	}{
-		{
-			task:   normal,
-			answer: workerEventDone,
-		},
-		{
-			task:   normalErr,
-			answer: workerErrInit,
-		},
-		{
-			task:   panicErr,
-			answer: workerPanic,
-		},
-	}
-
-	worker, err := NewWorker(WithName("my-worker-internal"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	worker.Start()
-
-	for _, testcase := range testcases {
-
-		go func(task testTask) {
-			worker.Task <- task
-		}(testcase.task)
-
-		workerStatus := worker.waitStatus() // use low-level function
-		if workerStatus != testcase.answer {
-			t.Fatalf("wrong result :%s, expected: %s", workerStatus, testcase.answer)
-		}
-	}
-
-	worker.Stop()
-
 }
 
 func TestWorkerForClient(t *testing.T) {

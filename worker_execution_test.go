@@ -1,12 +1,11 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type executionTraceTask struct {
@@ -37,9 +36,9 @@ func (t *executionTraceTask) phase(name string) error {
 	return nil
 }
 
-func (t *executionTraceTask) Init() error { return t.phase("Init") }
-func (t *executionTraceTask) Run() error  { return t.phase("Run") }
-func (t *executionTraceTask) Done() error { return t.phase("Done") }
+func (t *executionTraceTask) Init(context.Context) error { return t.phase("Init") }
+func (t *executionTraceTask) Run(context.Context) error  { return t.phase("Run") }
+func (t *executionTraceTask) Done(context.Context) error { return t.phase("Done") }
 
 func TestWorkerExecutionOrderAndFailureBoundaries(t *testing.T) {
 	tests := []struct {
@@ -66,7 +65,7 @@ func TestWorkerExecutionOrderAndFailureBoundaries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			w.logger = zap.NewNop()
+			w.logger = nopLogger()
 			t.Cleanup(w.Stop)
 			if err := w.Start(); err != nil {
 				t.Fatal(err)
@@ -95,7 +94,7 @@ func TestConcurrentDoKeepsTaskResultsSeparate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.logger = zap.NewNop()
+	w.logger = nopLogger()
 	t.Cleanup(w.Stop)
 	if err := w.Start(); err != nil {
 		t.Fatal(err)
@@ -153,7 +152,7 @@ func doWithTimeout(t *testing.T, w *Worker, task Task) error {
 
 type nilPanicTask struct{ phaseErrorTask }
 
-func (nilPanicTask) Run() error { panic(nil) }
+func (nilPanicTask) Run(context.Context) error { panic(nil) }
 
 func TestWorkerReportsNilPanicWithModernGoSemantics(t *testing.T) {
 	// Go 1.21+ defaults to a non-nil recovery value for panic(nil).
@@ -163,7 +162,7 @@ func TestWorkerReportsNilPanicWithModernGoSemantics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.logger = zap.NewNop()
+	w.logger = nopLogger()
 	t.Cleanup(w.Stop)
 	if err := w.Start(); err != nil {
 		t.Fatal(err)

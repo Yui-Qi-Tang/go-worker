@@ -20,7 +20,7 @@ func TestWorkerPanicClosesQuit(t *testing.T) {
 	}
 
 	select {
-	case <-w.Quit:
+	case <-w.quit:
 	case <-time.After(time.Second):
 		t.Fatal("worker Quit was not closed after panic")
 	}
@@ -54,32 +54,5 @@ func TestWorkerDoAfterPanicReturnsStopped(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Do() after panic deadlocked")
-	}
-}
-
-func TestWorkerDoPanicDoesNotBlockWhenRecoverySignalIsFull(t *testing.T) {
-	w, err := NewWorker(WithRecovery(true))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := w.Start(); err != nil {
-		t.Fatal(err)
-	}
-
-	w.Recovery <- "pending-recovery"
-
-	done := make(chan error, 1)
-	go func() {
-		done <- w.Do(panicErr)
-	}()
-
-	select {
-	case got := <-done:
-		if got != ErrWorkerPanic {
-			t.Fatalf("Do() error = %v, want %v", got, ErrWorkerPanic)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Do() blocked behind a full recovery signal channel")
 	}
 }

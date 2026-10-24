@@ -10,20 +10,16 @@ var (
 	ErrQueueDisabled = errors.New("asynchronous task queue is disabled")
 	// ErrQueueFull means TrySubmit could not accept a task immediately.
 	ErrQueueFull = errors.New("asynchronous task queue is full")
-	// ErrInvalidQueueCapacity means a negative queue capacity was configured.
-	ErrInvalidQueueCapacity = errors.New("task queue capacity cannot be negative")
+	// ErrInvalidQueueCapacity means the queue capacity is negative or above 1024.
+	ErrInvalidQueueCapacity = errors.New("task queue capacity must be between 0 and 1024")
 )
 
-// WithQueueCapacity bounds pending asynchronous tasks, including the head being
-// handed to a worker. Running tasks do not consume queue capacity. Zero disables
-// Submit and TrySubmit. Synchronous Schedule calls bypass this task queue.
+// WithQueueCapacity bounds submitted tasks waiting for a worker; running tasks
+// do not count. Zero, the default, disables Submit and TrySubmit. The queue's
+// memory is allocated by NewMaster. Synchronous Schedule calls wait in the
+// same order but do not count against this capacity.
 func WithQueueCapacity(capacity int) MasterOption {
 	return func(m *Master) { m.queueCapacity = capacity }
-}
-
-type submission struct {
-	task   Task
-	future *Future
 }
 
 // Submit waits for queue space and returns a reusable result handle. ctx only
@@ -46,82 +42,38 @@ func (m *Master) submit(ctx context.Context, task Task, block bool) (*Future, er
 	if !m.isInitialized() {
 		return nil, ErrMasterNotInitialized
 	}
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		m.Lock()
-		if err := m.acceptReadyErrorLocked(); err != nil {
-			m.Unlock()
-			return nil, err
-		}
-		if m.queueCapacity == 0 {
-			m.Unlock()
-			return nil, ErrQueueDisabled
-		}
-		if len(m.pending) < m.queueCapacity {
-			future := newFuture()
-			m.tasksWG.Add(1)
-			m.pending = append(m.pending, &submission{task: task, future: future})
-			m.signalQueueChangedLocked()
-			m.Unlock()
-			return future, nil
-		}
-		changed := m.queueChanged
-		m.Unlock()
-		if !block {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	m.admit.RLock()
+	defer m.admit.RUnlock()
+	if err := m.admissionError(); err != nil {
+		return nil, err
+	}
+	if m.ready.slots == nil {
+		return nil, ErrQueueDisabled
+	}
+	if err := m.grow(int(m.ready.waiting.Load()) + 1); err != nil {
+		return nil, err
+	}
+	if !block {
+		select {
+		case m.ready.slots <- struct{}{}:
+		default:
 			return nil, ErrQueueFull
 		}
+	} else {
 		select {
+		case m.ready.slots <- struct{}{}:
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-m.acceptDone:
 			return nil, ErrMasterStopped
-		case <-changed:
 		}
 	}
-}
-
-func (m *Master) signalQueueChangedLocked() {
-	close(m.queueChanged)
-	m.queueChanged = make(chan struct{})
-}
-
-func (m *Master) runQueue() {
-	for {
-		m.Lock()
-		if len(m.pending) == 0 {
-			stopped, changed := m.stopped, m.queueChanged
-			m.Unlock()
-			if stopped {
-				return
-			}
-			select {
-			case <-changed:
-			case <-m.Quit:
-			}
-			continue
-		}
-		job := m.pending[0]
-		m.Unlock()
-
-		// Retain the head in the queue until handoff so waiting submissions
-		// cannot escape the configured bound by spawning dispatch goroutines.
-		w, request, err := m.dispatch(context.Background(), job.task, nil)
-		m.Lock()
-		m.pending[0] = nil
-		m.pending = m.pending[1:]
-		m.signalQueueChangedLocked()
-		m.Unlock()
-		if err != nil {
-			job.future.complete(Result{Err: err})
-			m.tasksWG.Done()
-			continue
-		}
-		// Already counted by tasksWG at admission, including this completion.
-		go func() {
-			defer m.tasksWG.Done()
-			job.future.complete(m.finishDispatch(w, request))
-		}()
+	request := &taskRequest{task: task, future: newFuture()}
+	if err := m.ready.push(request); err != nil {
+		return nil, err
 	}
+	return request.future, nil
 }

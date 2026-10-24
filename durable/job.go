@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	worker "yuki-tang.github.com"
+	worker "github.com/Yui-Qi-Tang/go-worker"
 )
 
 // State describes a persisted job, rather than a Worker's health.
@@ -38,7 +38,7 @@ var (
 	ErrRunning = errors.New("durable queue running")
 	// ErrSchema means the file uses an unsupported durable schema.
 	ErrSchema = errors.New("unsupported durable schema")
-	// ErrInvalidRunner identifies an invalid Master, Builder, or concurrency.
+	// ErrInvalidRunner identifies an invalid pool, Builder, concurrency, or option.
 	ErrInvalidRunner = errors.New("invalid durable runner")
 )
 

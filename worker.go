@@ -1,156 +1,156 @@
-// Package worker provides creating worker with consistency task interface for your job.
-// And we also provide a master to manage the workers of this package and support worker failed recovery.
+// Package worker runs tasks with an Init, Run, Done lifecycle on a pool of
+// workers in one process. A Worker executes one task at a time; a Master
+// schedules synchronous calls and a bounded asynchronous queue onto its
+// workers, reports structured results, shuts down gracefully, and can replace
+// workers that panic. The durable subpackage persists jobs before dispatch.
 package worker
 
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log/slog"
 	"runtime/debug"
 	"sync"
-
-	guuid "github.com/google/uuid"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"uuid"
 )
 
 const (
 	// normal events
-	workerEventStart    string = "starting"
-	workerEventDone     string = "done"
-	workerEventReceived string = "received-task"
-	workerEventQuit     string = "quit"
+	workerEventStart    = "starting"
+	workerEventDone     = "done"
+	workerEventReceived = "received-task"
+	workerEventQuit     = "quit"
 	// error
-	workerErrInit string = "error-init"
-	workerErrRun  string = "error-run"
-	workerErrDone string = "error-done"
-	workerErrNil  string = "error-nil-task"
+	workerErrInit = "error-init"
+	workerErrRun  = "error-run"
+	workerErrDone = "error-done"
 	// panic
-	workerPanic string = "panic"
+	workerPanic = "panic"
 )
 
 var (
 	// ErrInvalidLogger indicates an explicitly configured nil logger.
 	ErrInvalidLogger = errors.New("logger must not be nil")
-	// ErrWorkerTaskInit is denoted the worker processes job but get error in Init phase
-	ErrWorkerTaskInit error = errors.New("worker got error from executing job in Init phase")
-	// ErrWorkerTaskRun is denoted the worker processes job but get error in Run phase
-	ErrWorkerTaskRun error = errors.New("worker got error from executing job in Run phase")
-	// ErrWorkerTaskDone is denoted the worker process job but get error in Done phase
-	ErrWorkerTaskDone error = errors.New("worker got error from executing job in Done phase")
-	// ErrWorkerPanic is denoted the worker got panic error from executing job or itself.
-	ErrWorkerPanic error = errors.New("worker got panic")
-	// ErrWorkerNotStarted is denoted the worker has not started accepting tasks.
-	ErrWorkerNotStarted error = errors.New("worker is not started")
-	// ErrWorkerAlreadyStarted is denoted the worker has already started accepting tasks.
-	ErrWorkerAlreadyStarted error = errors.New("worker is already started")
-	// ErrWorkerStopped is denoted the worker has already stopped accepting tasks.
-	ErrWorkerStopped error = errors.New("worker is stopped")
+	// ErrWorkerTaskInit means the task's Init returned an error; Result.Cause holds it.
+	ErrWorkerTaskInit = errors.New("task Init phase failed")
+	// ErrWorkerTaskRun means the task's Run returned an error; Result.Cause holds it.
+	ErrWorkerTaskRun = errors.New("task Run phase failed")
+	// ErrWorkerTaskDone means the task's Done returned an error; Result.Cause holds it.
+	ErrWorkerTaskDone = errors.New("task Done phase failed")
+	// ErrWorkerPanic means a task method panicked or called runtime.Goexit,
+	// which stops the worker.
+	ErrWorkerPanic = errors.New("task panicked")
+	// ErrWorkerNotStarted means the worker has not been started.
+	ErrWorkerNotStarted = errors.New("worker is not started")
+	// ErrWorkerAlreadyStarted means Start was called on a started worker.
+	ErrWorkerAlreadyStarted = errors.New("worker is already started")
+	// ErrWorkerStopped means the worker has stopped accepting tasks.
+	ErrWorkerStopped = errors.New("worker is stopped")
 	// ErrWorkerNilTask denotes the worker was asked to process a nil task.
-	ErrWorkerNilTask error = errors.New("worker task is nil")
+	ErrWorkerNilTask = errors.New("task is nil")
 	// ErrWorkerInvalidName denotes a worker was configured with an empty name.
-	ErrWorkerInvalidName error = errors.New("worker name can not be empty")
+	ErrWorkerInvalidName = errors.New("worker name cannot be empty")
 	// ErrWorkerNotInitialized denotes a worker was not created with package invariants.
-	ErrWorkerNotInitialized error = errors.New("worker is not initialized")
+	ErrWorkerNotInitialized = errors.New("worker is not initialized")
 )
 
-// Worker is the structure for worker
+// Worker executes one task at a time. A standalone Worker, created by
+// NewWorker, runs tasks given to Do. A Master creates its own workers.
 type Worker struct {
-	sync.Mutex
-	Task chan Task
-	Name string
-	id   string
+	mu   sync.Mutex
+	task chan *taskRequest
+	name string
+	// owner is the master whose queue a pool worker serves; nil if standalone.
+	owner *Master
 
-	recoveryID string
-	// recoveryBudget is shared across replacements and guarded by the master.
-	recoveryBudget *restartBudget
-
-	logger           *zap.Logger
+	logger           *slog.Logger
 	loggerConfigured bool
 	metrics          taskMetrics
-	ownerMetrics     *taskMetrics
-	done             chan struct{}
-	finishOnce       sync.Once
+	// ownerMetrics is the master's counters; it is set before a pool worker
+	// starts and never changes.
+	ownerMetrics *taskMetrics
+	done         chan struct{}
+	finishOnce   sync.Once
+	// cancel cancels the context the worker goroutine passes to task phases;
+	// canceled records a cancel requested before the goroutine set it.
+	cancel   context.CancelFunc
+	canceled bool
 
-	// Recovery TODO: use a special type for this channel, it's between master and worker
-	Recovery chan string
-	Quit     chan any
+	// quit closes when a standalone worker stops accepting tasks, so callers
+	// waiting to hand one over give up.
+	quit chan any
 
-	status chan string
+	// A standalone worker goroutine reads tasks from task, a pool worker from
+	// its master's readyQueue. ctrl carries at most one drain and one abort
+	// message; initial is the state the goroutine starts in.
+	ctrl      chan control
+	initial   workerState
+	drainOnce sync.Once
+	abortOnce sync.Once
 
 	started  bool
 	stopped  bool
-	panicked bool
 	stopOnce sync.Once
 }
 
-// Option is a functional option for worker setup
-type Option func(w *Worker)
+// WorkerOption configures a Worker in NewWorker.
+type WorkerOption func(w *Worker)
 
-// WithName is setup worker name
-func WithName(name string) Option {
+// WithName sets the worker name used in its logs. The name must not be
+// empty. By default NewWorker generates a UUID.
+func WithName(name string) WorkerOption {
 	return func(w *Worker) {
-		w.Name = name
+		w.name = name
 	}
 }
 
-// WithLogger supplies the worker logger. The caller owns the logger and its
-// final Sync; the worker never closes it. A nil logger is rejected.
-func WithLogger(logger *zap.Logger) Option {
+// WithLogger sets the worker's logger. The default is slog.Default(). A nil
+// logger is rejected.
+func WithLogger(logger *slog.Logger) WorkerOption {
 	return func(w *Worker) {
 		w.logger = logger
 		w.loggerConfigured = true
 	}
 }
 
-// WithRecovery sets recovery chan for upstream
-// if no upstream exists, don't create worker with this option
-func WithRecovery(ok bool) Option {
-	return func(w *Worker) {
-		if !ok {
-			w.Recovery = nil
-			return
-		}
-
-		if w.Recovery == nil {
-			w.Recovery = make(chan string, 1)
-		}
-	}
-}
-
 // NewWorker returns an initialized, unstarted worker.
-func NewWorker(opts ...Option) (*Worker, error) {
-	name := guuid.New().String()
+func NewWorker(opts ...WorkerOption) (*Worker, error) {
+	task := make(chan *taskRequest)
 	w := &Worker{
-		Name: name, recoveryID: name,
-		Quit: make(chan any), Task: make(chan Task),
-		status: make(chan string, 1), done: make(chan struct{}),
+		name: uuid.New().String(),
+		quit: make(chan any), task: task,
+		ctrl: make(chan control, 2), done: make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(w)
 	}
-	if w.Name == "" {
+	if w.name == "" {
 		return nil, ErrWorkerInvalidName
 	}
 	if w.loggerConfigured && w.logger == nil {
 		return nil, ErrInvalidLogger
 	}
 	if w.logger == nil {
-		config := zap.NewProductionConfig()
-		config.Encoding = "console"
-		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-		logger, err := config.Build()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create logger for worker: %w", err)
-		}
-		w.logger = logger
+		w.logger = slog.Default()
 	}
-	w.id = w.Name
 	return w, nil
 }
 
-// Start waits the work...
-// HINT: it's goroutine!
+// newPoolWorker creates a worker that serves m's queue. Master.Stop cancels
+// its task context through cancelTask.
+func newPoolWorker(m *Master) (*Worker, error) {
+	w := &Worker{
+		name: uuid.New().String(), owner: m,
+		quit: make(chan any), task: make(chan *taskRequest),
+		ctrl: make(chan control, 2), done: make(chan struct{}),
+		logger: m.logger,
+	}
+	return w, nil
+}
+
+// Start launches the worker goroutine and returns immediately. It returns
+// ErrWorkerAlreadyStarted if the worker is running and ErrWorkerStopped once
+// it has been stopped; a stopped worker cannot be restarted.
 func (w *Worker) Start() error {
 	return w.start()
 }
@@ -159,90 +159,93 @@ func (w *Worker) start() error {
 	if !w.isInitialized() {
 		return ErrWorkerNotInitialized
 	}
-	w.Lock()
-	if !w.isInitialized() {
-		w.Unlock()
-		return ErrWorkerNotInitialized
-	}
+	w.mu.Lock()
 	if w.stopped {
-		w.Unlock()
+		w.mu.Unlock()
 		return ErrWorkerStopped
 	}
 	if w.started {
-		w.Unlock()
+		w.mu.Unlock()
 		return ErrWorkerAlreadyStarted
 	}
 	w.started = true
-	w.Unlock()
+	w.mu.Unlock()
 
 	go w.run()
 	return nil
 }
 
-func (w *Worker) run() {
-	var activeTask Task
-	var result Result
-	var owner *taskMetrics
-	active := false
-	defer w.finishOnce.Do(func() { close(w.done) })
-	defer func() {
-		reason := recover()
-		// active also handles runtime.Goexit and legacy panic(nil), which would
-		// otherwise abandon a caller that is waiting for its task result.
-		if reason != nil || active {
-			result.Err = ErrWorkerPanic
-			result.PanicValue = reason
-			result.PanicStack = string(debug.Stack())
-			if cause, ok := reason.(error); ok {
-				result.Cause = cause
-			}
-			w.Lock()
-			w.panicked = true
-			w.Unlock()
-			w.stop()
-			if active {
-				w.finishTask(owner, result)
-				w.reportTaskResult(activeTask, result)
-			}
-			w.notifyRecovery()
-			w.logPanic(reason)
-		}
-		w.markStopped()
-	}()
+// runState is the task a worker is executing, kept for its panic handler.
+type runState struct {
+	request *taskRequest
+	result  Result
+	active  bool
+}
 
-	w.logger.Info(workerEventStart, zap.String("worker", w.Name))
-	for {
-		select {
-		case <-w.Quit:
-			w.logger.Info(workerEventQuit, zap.String("worker", w.Name))
-			if !w.loggerConfigured {
-				_ = w.logger.Sync()
-			}
-			return
-		case task, ok := <-w.Task:
-			if !ok {
-				w.stop()
-				return
-			}
-			w.Lock()
-			if w.stopped {
-				w.Unlock()
-				w.reportTaskResult(task, Result{Err: ErrWorkerStopped})
-				return
-			}
-			owner = w.ownerMetrics
-			w.metrics.begin()
-			if owner != nil {
-				owner.begin()
-			}
-			w.Unlock()
-			activeTask, active, result = task, true, Result{}
-			w.executeTask(task, &result)
-			w.finishTask(owner, result)
-			active = false
-			w.reportTaskResult(task, result)
-			activeTask = nil
+func (w *Worker) run() {
+	// The task context lives on this goroutine and is passed down; the
+	// worker keeps only its cancel function for Stop.
+	ctx, cancel := context.WithCancel(context.Background())
+	w.mu.Lock()
+	w.cancel = cancel
+	if w.canceled {
+		cancel()
+	}
+	w.mu.Unlock()
+
+	var st runState
+	defer w.finishOnce.Do(func() { close(w.done) })
+	defer cancel()
+	defer w.recoverRun(&st)
+
+	w.logger.Info(workerEventStart, "worker", w.name)
+	w.loop(ctx, &st)
+	w.logger.Info(workerEventQuit, "worker", w.name)
+}
+
+func (w *Worker) execute(ctx context.Context, st *runState, request *taskRequest) {
+	w.metrics.begin()
+	if w.ownerMetrics != nil {
+		w.ownerMetrics.begin()
+	}
+	st.request, st.active, st.result = request, true, Result{}
+	w.executeTask(ctx, request.task, &st.result)
+	w.finishTask(st.result)
+	st.active = false
+	request.reply(st.result)
+	st.request = nil
+}
+
+// recoverRun ends the worker. A pool worker first tells its master, which
+// may replace it, so a caller that sees ErrWorkerPanic can rely on the
+// replacement. After a panic or runtime.Goexit, the active task then gets
+// ErrWorkerPanic, before diagnostic logging.
+func (w *Worker) recoverRun(st *runState) {
+	reason := recover()
+	// active also covers runtime.Goexit and legacy panic(nil), which would
+	// otherwise abandon a caller waiting for its task result.
+	panicked := reason != nil || st.active
+	if panicked {
+		st.result.Err = ErrWorkerPanic
+		st.result.PanicValue = reason
+		st.result.PanicStack = string(debug.Stack())
+		if cause, ok := reason.(error); ok {
+			st.result.Cause = cause
 		}
+		w.stop()
+	}
+	w.markStopped()
+	if st.active {
+		w.finishTask(st.result)
+	}
+	if w.owner != nil {
+		w.owner.workerExited(w, panicked)
+	}
+	if st.active {
+		st.request.reply(st.result)
+	}
+	if panicked {
+		w.logPanic(reason)
 	}
 }
 
@@ -250,107 +253,84 @@ func (w *Worker) run() {
 // The original failure is already available through the task result.
 func (w *Worker) logPanic(reason any) {
 	defer func() { _ = recover() }()
-	w.logger.Error(workerPanic, zap.String("worker", w.Name), zap.Any("reason", reason))
-	if !w.loggerConfigured {
-		_ = w.logger.Sync()
-	}
+	w.logger.Error(workerPanic, "worker", w.name, "reason", reason)
 }
 
-func (w *Worker) finishTask(owner *taskMetrics, result Result) {
+func (w *Worker) finishTask(result Result) {
 	w.metrics.finish(result)
-	if owner != nil {
-		owner.finish(result)
+	if w.ownerMetrics != nil {
+		w.ownerMetrics.finish(result)
 	}
 }
 
-// Stop terminates worker. It is safe to call more than once.
+// Stop stops accepting tasks and cancels the context of a running task,
+// without waiting. It is safe to call more than once.
 func (w *Worker) Stop() {
+	if !w.isInitialized() {
+		return
+	}
 	w.stop()
+	w.requestAbort()
+	w.cancelTask()
 }
 
+// requestDrain asks the worker goroutine to finish queued tasks and exit.
+// Each request is sent at most once, so the two-slot ctrl never blocks.
+func (w *Worker) requestDrain() { w.drainOnce.Do(func() { w.ctrl <- controlDrain }) }
+
+// requestAbort asks the worker goroutine to exit without running queued
+// tasks; a pool's master answers them.
+func (w *Worker) requestAbort() { w.abortOnce.Do(func() { w.ctrl <- controlAbort }) }
+
+// cancelTask cancels the context of the running task, or of the next one
+// if the worker goroutine has not set its context up yet.
+func (w *Worker) cancelTask() {
+	w.mu.Lock()
+	w.canceled = true
+	cancel := w.cancel
+	w.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// stop stops accepting tasks and lets a running task finish.
 func (w *Worker) stop() {
 	if !w.isInitialized() {
 		return
 	}
 
 	w.stopOnce.Do(func() {
-		w.Lock()
+		w.mu.Lock()
 		w.stopped = true
 		started := w.started
-		close(w.Quit)
-		w.Unlock()
+		close(w.quit)
+		w.mu.Unlock()
+		w.requestDrain()
 		if !started {
 			w.finishOnce.Do(func() { close(w.done) })
 		}
 	})
 }
 
-func (w *Worker) identity() string {
-	if w.id == "" {
-		return w.Name
+// Name returns the worker name set by WithName, or a generated UUID.
+func (w *Worker) Name() string {
+	if w == nil {
+		return ""
 	}
-	return w.id
-}
-
-func (w *Worker) recoveryIdentity() string {
-	if w.recoveryID == "" {
-		return w.identity()
-	}
-	return w.recoveryID
-}
-
-func (w *Worker) notifyRecovery() {
-	w.Lock()
-	recovery := w.Recovery
-	w.Unlock()
-	if recovery == nil {
-		return
-	}
-
-	defer func() {
-		// Recovery is exported, so callers can close it. Treat that as recovery disabled.
-		_ = recover()
-	}()
-
-	// Panic status must reach Worker.Do even when recovery already has a pending signal.
-	select {
-	case recovery <- w.recoveryIdentity():
-	default:
-	}
-}
-
-func (w *Worker) isStopped() bool {
-	w.Lock()
-	defer w.Unlock()
-	return w.stopped
-}
-
-func (w *Worker) didPanic() bool {
-	w.Lock()
-	defer w.Unlock()
-	return w.panicked
-}
-
-func (w *Worker) isStarted() bool {
-	w.Lock()
-	defer w.Unlock()
-	return w.started && !w.stopped
+	return w.name
 }
 
 func (w *Worker) isInitialized() bool {
-	return w != nil && w.Task != nil && w.Quit != nil && w.status != nil && w.logger != nil && w.done != nil
+	return w != nil && w.task != nil && w.quit != nil && w.ctrl != nil && w.logger != nil && w.done != nil
 }
 
 func (w *Worker) readyError() error {
 	if !w.isInitialized() {
 		return ErrWorkerNotInitialized
 	}
-	w.Lock()
-	defer w.Unlock()
-
-	if !w.isInitialized() {
-		return ErrWorkerNotInitialized
-	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if w.stopped {
 		return ErrWorkerStopped
 	}
@@ -361,9 +341,9 @@ func (w *Worker) readyError() error {
 }
 
 func (w *Worker) markStopped() {
-	w.Lock()
+	w.mu.Lock()
 	w.stopped = true
-	w.Unlock()
+	w.mu.Unlock()
 }
 
 // Wait waits for this worker to exit. It does not initiate shutdown.
@@ -374,12 +354,13 @@ func (w *Worker) Wait(ctx context.Context) error {
 	return waitDone(ctx, w.done)
 }
 
-// Shutdown stops accepting tasks and waits for an active task to finish.
-// A deadline limits the wait; it cannot interrupt a Task method.
+// Shutdown stops accepting tasks and waits for an active task to finish
+// without canceling its context. A deadline limits the wait; call Stop to
+// cancel the running task.
 func (w *Worker) Shutdown(ctx context.Context) error {
 	if !w.isInitialized() {
 		return ErrWorkerNotInitialized
 	}
-	w.Stop()
+	w.stop()
 	return w.Wait(ctx)
 }

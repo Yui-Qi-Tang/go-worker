@@ -1,0 +1,45 @@
+# go tool pprof -top -cum, after tree, Noop workers=1, -count=10
+pkg: example.com/go-worker-benchmarks
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	       417.0 ns/op	   2398201 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	       269.1 ns/op	   3716252 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	       246.4 ns/op	   4058208 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	       226.8 ns/op	   4409665 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	       239.3 ns/op	   4178186 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	       239.5 ns/op	   4175089 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	       247.2 ns/op	   4045280 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	       232.6 ns/op	   4299773 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	       248.1 ns/op	   4031107 tasks/s	     256 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	       298.6 ns/op	   3348424 tasks/s	     256 B/op	       3 allocs/op
+ok  	example.com/go-worker-benchmarks	0.764s
+File: after.test
+Type: cpu
+Time: 2026-10-24 02:39:03 CST
+Duration: 402.33ms, Total samples = 460ms (114.33%)
+Showing nodes accounting for 390ms, 84.78% of 460ms total
+Showing top 25 nodes out of 70
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      270ms 58.70%  runtime.findRunnable
+         0     0%     0%      270ms 58.70%  runtime.mcall
+         0     0%     0%      270ms 58.70%  runtime.park_m
+         0     0%     0%      270ms 58.70%  runtime.schedule
+     180ms 39.13% 39.13%      180ms 39.13%  runtime.usleep
+         0     0% 39.13%      150ms 32.61%  runtime.semasleep
+     140ms 30.43% 69.57%      140ms 30.43%  runtime.pthread_cond_wait
+         0     0% 69.57%      130ms 28.26%  runtime.mPark (inline)
+         0     0% 69.57%      130ms 28.26%  runtime.notesleep
+         0     0% 69.57%      130ms 28.26%  runtime.runqgrab
+         0     0% 69.57%      130ms 28.26%  runtime.runqsteal
+         0     0% 69.57%      130ms 28.26%  runtime.stealWork
+         0     0% 69.57%      130ms 28.26%  runtime.stopm
+         0     0% 69.57%      120ms 26.09%  runtime.systemstack
+         0     0% 69.57%       70ms 15.22%  runtime.(*mheap).alloc.func1
+         0     0% 69.57%       70ms 15.22%  runtime.(*mheap).allocSpan
+      70ms 15.22% 84.78%       70ms 15.22%  runtime.madvise
+         0     0% 84.78%       70ms 15.22%  runtime.sysUsed (inline)
+         0     0% 84.78%       70ms 15.22%  runtime.sysUsedOS (inline)
+         0     0% 84.78%       60ms 13.04%  runtime.lock (inline)
+         0     0% 84.78%       60ms 13.04%  runtime.lock2
+         0     0% 84.78%       60ms 13.04%  runtime.lockWithRank (inline)
+         0     0% 84.78%       60ms 13.04%  runtime.selectgo
+         0     0% 84.78%       50ms 10.87%  github.com/Yui-Qi-Tang/go-worker.(*Master).spawnLocked.func1
+         0     0% 84.78%       50ms 10.87%  github.com/Yui-Qi-Tang/go-worker.(*Worker).loop

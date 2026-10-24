@@ -4,28 +4,28 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	worker "github.com/Yui-Qi-Tang/go-worker"
 	"github.com/alitto/pond/v2"
 	"github.com/panjf2000/ants/v2"
-	"go.uber.org/zap"
-	worker "yuki-tang.github.com"
 )
 
 const queueCapacity = 64
 
 type benchmarkTask struct{ run func() }
 
-func (benchmarkTask) ID() string  { return "benchmark" }
-func (benchmarkTask) Init() error { return nil }
-func (t benchmarkTask) Run() error {
+func (benchmarkTask) ID() string                 { return "benchmark" }
+func (benchmarkTask) Init(context.Context) error { return nil }
+func (t benchmarkTask) Run(context.Context) error {
 	t.run()
 	return nil
 }
-func (benchmarkTask) Done() error { return nil }
+func (benchmarkTask) Done(context.Context) error { return nil }
 
 // BenchmarkPool measures a finite batch, including pool construction, submission,
 // execution, and draining. One operation is one completed task, not a latency
@@ -95,17 +95,11 @@ func runChannel(_ *testing.B, workers, tasks int, job func()) {
 }
 
 func runGoWorker(b *testing.B, workers, tasks int, job func()) {
-	m, err := worker.NewMaster(worker.WithQueueCapacity(queueCapacity), worker.WithMasterLogger(zap.NewNop()))
+	m, err := worker.NewMaster(worker.WithWorkers(workers, workers), worker.WithQueueCapacity(queueCapacity), worker.WithMasterLogger(slog.New(slog.DiscardHandler)))
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer m.Stop()
-	if err := m.AddWorkers(workers); err != nil {
-		b.Fatal(err)
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		b.Fatal(err)
-	}
 	task := benchmarkTask{run: job}
 	for range tasks {
 		if _, err := m.Submit(context.Background(), task); err != nil {

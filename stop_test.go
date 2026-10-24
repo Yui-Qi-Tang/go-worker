@@ -15,15 +15,8 @@ func TestWorkerStopIsIdempotent(t *testing.T) {
 }
 
 func TestMasterStopIsIdempotent(t *testing.T) {
-	ms, err := NewMaster(WithWorkerRecovery(true))
+	ms, err := NewMaster(WithWorkers(1, 1))
 	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := ms.AddWorkers(1); err != nil {
-		t.Fatal(err)
-	}
-	if err := ms.WakeAllWorkersUp(); err != nil {
 		t.Fatal(err)
 	}
 

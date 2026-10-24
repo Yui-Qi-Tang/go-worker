@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,9 +14,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/Yui-Qi-Tang/go-worker"
 	bolt "go.etcd.io/bbolt"
-	"go.uber.org/zap"
-	worker "yuki-tang.github.com"
 )
 
 // TestCrashHelper is executed in a subprocess and deliberately killed without
@@ -48,18 +48,12 @@ func TestCrashHelper(t *testing.T) {
 		<-time.After(time.Hour)
 		return
 	}
-	m, err := worker.NewMaster(worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
+	m, err := worker.NewMaster(worker.WithWorkers(1, 1), worker.WithQueueCapacity(1), worker.WithMasterLogger(slog.New(slog.DiscardHandler)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := m.AddWorkers(1); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		t.Fatal(err)
-	}
 	phasesFinished := make(chan struct{})
-	build := func(job Job) (worker.Task, error) {
+	build := func(_ context.Context, job Job) (worker.Task, error) {
 		return &testTask{
 			run: func() error {
 				if mode == "retry-scheduled" {
@@ -206,7 +200,7 @@ func TestProcessCrashAfterAcceptanceBeforeDispatch(t *testing.T) {
 		t.Fatalf("accepted job = %+v, %v", job, err)
 	}
 	m := testMaster(t, 1)
-	startRunner(t, q, m, func(job Job) (worker.Task, error) {
+	startRunner(t, q, m, func(_ context.Context, job Job) (worker.Task, error) {
 		return &testTask{run: func() error { return deduplicatedEffect(job) }}, nil
 	}, 1)
 	finished := waitJob(t, q, job.ID, Succeeded)
@@ -240,7 +234,7 @@ func TestProcessCrashDuringTaskUsesSafetyDeclarationAndAttemptBudget(t *testing.
 			}
 			m := testMaster(t, 1)
 			var builds atomic.Int64
-			startRunner(t, q, m, func(job Job) (worker.Task, error) {
+			startRunner(t, q, m, func(_ context.Context, job Job) (worker.Task, error) {
 				if job.ID == "crash-job" {
 					builds.Add(1)
 				}
@@ -290,7 +284,7 @@ func TestProcessCrashAfterTaskCompletionBeforeDurableCompletionAllowsDeduplicati
 	}
 	m := testMaster(t, 1)
 	var builds atomic.Int64
-	startRunner(t, q, m, func(job Job) (worker.Task, error) {
+	startRunner(t, q, m, func(_ context.Context, job Job) (worker.Task, error) {
 		builds.Add(1)
 		return &testTask{run: func() error { return deduplicatedEffect(job) }}, nil
 	}, 1)

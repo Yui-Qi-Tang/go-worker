@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	bolt "go.etcd.io/bbolt"
+	berrors "go.etcd.io/bbolt/errors"
 )
 
 func openQueue(t *testing.T) *Queue {
@@ -140,7 +142,7 @@ func TestFileOwnershipAndClosedEnqueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if other, err := Open(path); !errors.Is(err, bolt.ErrTimeout) {
+	if other, err := Open(path); !errors.Is(err, berrors.ErrTimeout) {
 		if other != nil {
 			if closeErr := other.Close(); closeErr != nil {
 				t.Error(closeErr)
@@ -216,5 +218,188 @@ func TestUnsupportedSchemaAndCorruptRecordDoNotResetQueue(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+// checkReadyIndex verifies that the ready index holds exactly the pending jobs.
+func checkReadyIndex(t *testing.T, q *Queue) {
+	t.Helper()
+	if err := q.db.View(func(tx *bolt.Tx) error {
+		want := map[string]string{}
+		if err := tx.Bucket(jobsBucket).ForEach(func(_, data []byte) error {
+			job, err := decodeJob(data)
+			if err == nil && job.State == Pending {
+				want[string(readyKey(job))] = job.ID
+			}
+			return err
+		}); err != nil {
+			return err
+		}
+		got := map[string]string{}
+		if err := tx.Bucket(readyBucket).ForEach(func(key, id []byte) error {
+			got[string(key)] = string(id)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if len(got) != len(want) {
+			t.Errorf("ready index has %d entries, want %d", len(got), len(want))
+		}
+		for key, id := range want {
+			if got[key] != id {
+				t.Errorf("ready index missing pending job %q", id)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClaimFollowsReadinessOrder(t *testing.T) {
+	q := openQueue(t)
+	ctx := context.Background()
+	for _, id := range []string{"c", "a", "b", "delayed"} {
+		if _, err := q.Enqueue(ctx, spec(id)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := q.changeJob("delayed", func(j *Job) { j.NextAttemptAt = time.Now().UTC().Add(time.Hour) }); err != nil {
+		t.Fatal(err)
+	}
+	checkReadyIndex(t, q)
+	for _, want := range []string{"c", "a", "b"} {
+		job, ready, err := q.claim(ctx)
+		if err != nil || !ready || job.ID != want || job.State != Running {
+			t.Fatalf("claim = %+v, %v, %v; want %q", job, ready, err, want)
+		}
+		checkReadyIndex(t, q)
+	}
+	if job, ready, err := q.claim(ctx); err != nil || ready {
+		t.Fatalf("claimed a delayed job: %+v, %v, %v", job, ready, err)
+	}
+}
+
+func TestOpenMigratesVersion1File(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	db, err := bolt.Open(path, 0600, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := time.Now().UTC().Add(-time.Minute)
+	pending := Job{Spec: spec("pending"), State: Pending, CreatedAt: created, UpdatedAt: created}
+	pending.Retry.MaxAttempts = 1
+	running := Job{Spec: spec("running"), State: Running, Attempts: 1, CreatedAt: created, UpdatedAt: created}
+	running.Retry = RetryPolicy{MaxAttempts: 2, Safe: true}
+	done := Job{Spec: spec("done"), State: Succeeded, Attempts: 1, CreatedAt: created, UpdatedAt: created}
+	done.Retry.MaxAttempts = 1
+	if err := db.Update(func(tx *bolt.Tx) error {
+		meta, err := tx.CreateBucket(metadataBucket)
+		if err != nil {
+			return err
+		}
+		if err := meta.Put(versionKey, []byte("1")); err != nil {
+			return err
+		}
+		jobs, err := tx.CreateBucket(jobsBucket)
+		if err != nil {
+			return err
+		}
+		for _, job := range []Job{pending, running, done} {
+			if err := putJob(jobs, job); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	q, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := q.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := q.db.View(func(tx *bolt.Tx) error {
+		if got := string(tx.Bucket(metadataBucket).Get(versionKey)); got != schemaVersion {
+			t.Errorf("schema version = %q, want %q", got, schemaVersion)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	checkReadyIndex(t, q)
+	// The interrupted safe job became pending after the migrated one.
+	for _, want := range []string{"pending", "running"} {
+		if job, ready, err := q.claim(context.Background()); err != nil || !ready || job.ID != want {
+			t.Fatalf("claim = %+v, %v, %v; want %q", job, ready, err, want)
+		}
+	}
+}
+
+func TestOpenRejectsVersion2WithoutReadyIndex(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	q, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.db.Update(func(tx *bolt.Tx) error { return tx.DeleteBucket(readyBucket) }); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if reopened, err := Open(path); !errors.Is(err, ErrSchema) {
+		if reopened != nil {
+			if closeErr := reopened.Close(); closeErr != nil {
+				t.Error(closeErr)
+			}
+		}
+		t.Fatalf("Open without ready index = %v, want %v", err, ErrSchema)
+	}
+}
+
+func TestPurgeDeletesOnlyRequestedTerminalJobs(t *testing.T) {
+	q := openQueue(t)
+	ctx := context.Background()
+	states := map[string]State{"succeeded": Succeeded, "failed": Failed, "unknown": Unknown, "pending": Pending}
+	for id, state := range states {
+		if _, err := q.Enqueue(ctx, spec(id)); err != nil {
+			t.Fatal(err)
+		}
+		if err := q.changeJob(id, func(j *Job) { j.State = state }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	checkReadyIndex(t, q)
+	for _, invalid := range [][]State{nil, {Pending}, {Running}, {Succeeded, "bogus"}} {
+		if n, err := q.Purge(ctx, time.Now(), invalid...); n != 0 || err != ErrInvalidPurge {
+			t.Fatalf("Purge(%v) = %d, %v; want %v", invalid, n, err, ErrInvalidPurge)
+		}
+	}
+	if n, err := q.Purge(ctx, time.Now().Add(-time.Hour), Succeeded, Failed); n != 0 || err != nil {
+		t.Fatalf("Purge before creation = %d, %v", n, err)
+	}
+	if n, err := q.Purge(ctx, time.Now(), Succeeded, Failed); n != 2 || err != nil {
+		t.Fatalf("Purge = %d, %v; want 2", n, err)
+	}
+	jobs, err := q.Jobs(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 2 || jobs[0].ID != "pending" || jobs[1].ID != "unknown" {
+		t.Fatalf("remaining jobs = %+v", jobs)
+	}
+	checkReadyIndex(t, q)
+	// A purged ID is forgotten, so the same specification is accepted anew.
+	if job, err := q.Enqueue(ctx, spec("succeeded")); err != nil || job.State != Pending {
+		t.Fatalf("re-enqueue after purge = %+v, %v", job, err)
 	}
 }

@@ -1,265 +1,181 @@
 package worker
 
-import "slices"
+import "time"
 
-// AddWorker adds worker to pool
-func (m *Master) AddWorker(worker *Worker) error {
-	if worker == nil {
-		return ErrMasterAddNilWorker
-	}
-	if !m.isInitialized() {
-		return ErrMasterNotInitialized
-	}
-
-	m.Lock()
-	defer m.Unlock()
-
-	if m.closing || m.stopped {
-		return ErrMasterStopped
-	}
-
-	if !worker.isInitialized() {
-		return ErrWorkerNotInitialized
-	}
-
-	if worker.isStopped() {
-		return ErrWorkerStopped
-	}
-
-	if worker.Name == "" {
-		return ErrWorkerInvalidName
-	}
-
-	if m.hasWorkerIdentityLocked(worker.identity()) {
-		return ErrMasterDuplicateWorkerName
-	}
-
-	if uint(len(m.Pool)+1) > maxPoolSize {
-		return ErrMasterWorkerPoolIsFull
-	}
-
-	m.addWorkerLocked(worker)
-
-	return nil
-}
-
-func (m *Master) hasWorkerIdentityLocked(id string) bool {
-	for _, worker := range m.Pool {
-		if worker.identity() == id {
-			return true
-		}
-	}
-	return false
-}
-
-func (m *Master) addWorkerLocked(worker *Worker) {
-	// Master owns recovery signaling after a worker enters the pool.
-	worker.Lock()
-	worker.Recovery = m.workerPanic
-	worker.ownerMetrics = &m.metrics
-	worker.Unlock()
-	if worker.recoveryBudget == nil {
-		worker.recoveryBudget = &restartBudget{}
-	}
-	m.backgroundWG.Go(func() {
-		<-worker.done
-		// The channel notification is only a fast path. Exit observation also
-		// recovers startup/direct-task panics when that notification was dropped.
-		if worker.didPanic() && m.workerPanic != nil {
-			m.recoverWorker(worker.recoveryIdentity())
-		}
-	})
-
-	m.Pool = append(m.Pool, worker)
-	m.workerAdded = true
-	m.poolErr = nil
-	m.signalPoolChangedLocked()
-
-	m.queueWorkerLocked(worker)
-}
-
-// AddWorkers creates number of workers with counts; HINT: the workers support recovery
-func (m *Master) AddWorkers(counts int) error {
-	if counts < 0 {
-		return ErrMasterSetupWithInvalidWorkerCount
-	}
-	if uint(counts) > maxPoolSize {
-		return ErrMasterSetupWithTooLargePoolSize
-	}
-	if !m.isInitialized() {
-		return ErrMasterNotInitialized
-	}
-
-	m.RLock()
-	if m.closing || m.stopped {
-		m.RUnlock()
-		return ErrMasterStopped
-	}
-	if counts == 0 {
-		m.RUnlock()
-		return nil
-	}
-	if uint(len(m.Pool)+counts) > maxPoolSize {
-		m.RUnlock()
-		return ErrMasterWorkerPoolIsFull
-	}
-	m.RUnlock()
-
-	workers := make([]*Worker, 0, counts)
-	for range counts {
-		opts := []Option{WithRecovery(m.workerPanic != nil)}
-		if m.loggerConfigured {
-			opts = append(opts, WithLogger(m.logger))
-		}
-		w, err := NewWorker(opts...)
-		if err != nil {
-			return err
-		}
-		workers = append(workers, w)
-	}
-
-	m.Lock()
-	defer m.Unlock()
-
-	if m.closing || m.stopped {
-		return ErrMasterStopped
-	}
-
-	if uint(len(m.Pool)+len(workers)) > maxPoolSize {
-		return ErrMasterWorkerPoolIsFull
-	}
-
-	for _, w := range workers {
-		m.addWorkerLocked(w)
-	}
-
-	return nil
-}
-
-func (m *Master) hasWorker(worker *Worker) bool {
-	if worker == nil || !m.isInitialized() {
-		return false
-	}
-
-	m.RLock()
-	defer m.RUnlock()
-	return slices.Contains(m.Pool, worker)
-}
-
-func (m *Master) hasStartedWorker() bool {
-	if !m.isInitialized() {
-		return false
-	}
-
-	m.RLock()
-	defer m.RUnlock()
-
-	for _, worker := range m.Pool {
-		if worker.isStarted() {
-			return true
-		}
-	}
-	return false
-}
-
-func (m *Master) removeWorker(id string, expectRecovery bool) bool {
-	if !m.isInitialized() {
-		return false
-	}
-
-	m.Lock()
-	defer m.Unlock()
-
-	for i, worker := range m.Pool {
-		if worker.identity() == id {
-			m.removeWorkerAtLocked(i, expectRecovery)
-			return true
-		}
-	}
-
-	return false
-}
-
-// removeWorkerAtLocked preserves the pending-recovery state while a replacement
-// is being created. Callers must hold m's write lock.
-func (m *Master) removeWorkerAtLocked(index int, expectRecovery bool) {
-	m.Pool = append(m.Pool[:index], m.Pool[index+1:]...)
-	if !expectRecovery {
-		m.markWorkerPoolEmptyLocked()
-	}
-	m.signalPoolChangedLocked()
-}
-
-func (m *Master) signalPoolChangedLocked() {
-	close(m.poolChanged)
-	m.poolChanged = make(chan struct{})
-}
-
-func (m *Master) markWorkerPoolEmptyLocked() {
-	if len(m.Pool) == 0 {
-		m.workerAdded = false
-	}
-}
-
-// GetWorkers returns number of workers
-func (m *Master) GetWorkers() int {
+// Workers returns the number of running workers.
+func (m *Master) Workers() int {
 	if !m.isInitialized() {
 		return 0
 	}
-
-	m.RLock()
-	defer m.RUnlock()
-	return len(m.Pool)
+	return int(m.live.Load())
 }
 
-// GetPoolSize returns number of workers in the pool.
-func (m *Master) GetPoolSize() int {
-	return m.GetWorkers()
+// spawnLocked creates and starts one pool worker. Callers hold m.mu.
+func (m *Master) spawnLocked() error {
+	w, err := m.newWorker(m)
+	if err != nil {
+		return err
+	}
+	w.ownerMetrics = &m.metrics
+	w.started = true
+	// A worker started during shutdown, such as a replacement, would miss
+	// the control messages already sent to the others.
+	switch {
+	case m.aborting:
+		w.initial = stateAborting
+	case m.closing:
+		w.initial = stateDraining
+	}
+	if m.poolDown.Load() != nil {
+		// Accept tasks again before Workers reports the new worker, so a
+		// caller that sees it is not rejected as if the pool were down.
+		m.ready.markDown(nil)
+		m.poolDown.Store(nil)
+	}
+	m.workers[w] = struct{}{}
+	m.live.Store(int32(len(m.workers)))
+	// The caller's worker, if any, is still counted, so running never reaches
+	// zero while a replacement is added during shutdown.
+	m.running.Add(1)
+	m.ready.addActive(1)
+	go func() {
+		defer m.running.Done()
+		w.run()
+	}()
+	return nil
 }
 
-// WakeAllWorkersUp weaks all of workers in the pool up
-func (m *Master) WakeAllWorkersUp() error {
-	if !m.isInitialized() {
-		return ErrMasterNotInitialized
+func (m *Master) removeLocked(w *Worker) {
+	delete(m.workers, w)
+	m.live.Store(int32(len(m.workers)))
+}
+
+// grow adds a worker when more tasks wait than workers are idle and the pool
+// is below its maximum. demand counts the waiting tasks, including one being
+// admitted. It returns the pool's error if no worker can run.
+func (m *Master) grow(demand int) error {
+	if !m.scales() || int(m.idle.Load()) >= demand || int(m.live.Load()) >= m.maxWorkers {
+		return nil
 	}
-
-	m.Lock()
-	defer m.Unlock()
-
-	if m.closing || m.stopped {
-		return ErrMasterStopped
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closing || int(m.idle.Load()) >= demand || len(m.workers) >= m.maxWorkers {
+		return nil
 	}
-
-	if len(m.Pool) == 0 {
-		return ErrMasterWorkerPoolIsEmpty
+	if m.lost > 0 && m.healTimer != nil {
+		// The restart limit was reached; the heal timer adds the worker.
+		return nil
 	}
+	m.startLocked("")
+	if failure := m.poolDown.Load(); failure != nil {
+		return failure.err
+	}
+	return nil
+}
 
-	var wakeErr error
-	for i := 0; i < len(m.Pool); {
-		w := m.Pool[i]
-		if err := w.Start(); err != nil && err != ErrWorkerAlreadyStarted {
-			if err == ErrWorkerStopped {
-				m.removeWorkerAtLocked(i, false)
-				wakeErr = err
-				continue
-			}
-			return err
+// retire removes an idle worker if more than the minimum are running.
+func (m *Master) retire(w *Worker) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closing || len(m.workers) <= m.minWorkers {
+		return false
+	}
+	m.removeLocked(w)
+	return true
+}
+
+// workerExited runs on the exiting worker's goroutine. A panicked worker is
+// replaced unless the pool is aborting.
+func (m *Master) workerExited(w *Worker, panicked bool) {
+	m.ready.addActive(-1)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.removeLocked(w)
+	if panicked && !m.aborting {
+		m.lost++
+		m.restoreLocked(w.name)
+	}
+}
+
+// restoreLocked starts workers until the pool is back at its minimum, or at
+// one worker while the pool is down, stopping early if the restart budget or
+// worker creation fails.
+func (m *Master) restoreLocked(lostWorker string) {
+	for {
+		target := m.minWorkers
+		if target == 0 && m.poolDown.Load() != nil {
+			target = 1
 		}
-		i++
-	}
-
-	return wakeErr
-}
-
-// Remove by pointer so a stale lease cannot remove a replacement with the same
-// registered name. Recovery identity handles the corresponding panic path.
-func (m *Master) removeWorkerReference(target *Worker) {
-	m.Lock()
-	defer m.Unlock()
-	for i, w := range m.Pool {
-		if w == target {
-			m.removeWorkerAtLocked(i, false)
+		if len(m.workers) >= target {
+			return
+		}
+		if !m.startLocked(lostWorker) {
 			return
 		}
 	}
+}
+
+// startLocked starts one worker. While panicked workers are unreplaced, the
+// new worker is a replacement: it spends the restart budget, and a denial
+// schedules another try. It reports whether a worker started.
+func (m *Master) startLocked(lostWorker string) bool {
+	now := time.Now()
+	replacing := m.lost > 0
+	if replacing {
+		if !m.budget.allow(now, m.recoveryPolicy) {
+			m.recoveryStats.Exhausted++
+			m.recordFailureLocked(lostWorker, "limit", ErrRecoveryExhausted, now)
+			m.scheduleHealLocked(m.budget.nextAllowed(m.recoveryPolicy).Sub(now))
+			m.markDownLocked(ErrRecoveryExhausted)
+			return false
+		}
+		m.recoveryStats.Attempts++
+	}
+	if err := m.spawnLocked(); err != nil {
+		if replacing {
+			m.recoveryStats.Failed++
+			m.recordFailureLocked(lostWorker, "create", err, now)
+			m.scheduleHealLocked(m.budget.nextAllowed(m.recoveryPolicy).Sub(now))
+		}
+		m.markDownLocked(ErrRecoveryFailed)
+		return false
+	}
+	if replacing {
+		m.lost--
+		m.recoveryStats.Started++
+	}
+	return true
+}
+
+func (m *Master) recordFailureLocked(worker, stage string, err error, now time.Time) {
+	m.recoveryStats.LastFailure = RecoveryFailure{WorkerID: worker, Stage: stage, Err: err, Time: now}
+}
+
+// scheduleHealLocked retries restoreLocked after d, unless shutdown began.
+func (m *Master) scheduleHealLocked(d time.Duration) {
+	if m.closing {
+		return
+	}
+	if m.healTimer != nil {
+		m.healTimer.Stop()
+	}
+	m.healTimer = time.AfterFunc(d, func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		m.healTimer = nil
+		if !m.closing {
+			m.restoreLocked("")
+		}
+	})
+}
+
+// markDownLocked makes the queue answer tasks with err when no worker is
+// left, so callers get err instead of waiting. A started worker clears it in
+// spawnLocked.
+func (m *Master) markDownLocked(err error) {
+	if len(m.workers) > 0 {
+		return
+	}
+	m.poolDown.Store(&poolFailure{err: err})
+	m.ready.markDown(err)
 }

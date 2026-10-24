@@ -1,0 +1,960 @@
+BenchmarkPool/Noop/workers=1/go-worker-8         	 3847041	       322.6 ns/op	   3099877 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1416254	       839.7 ns/op	   1190918 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  787881	      1532 ns/op	    652615 tasks/s	     275 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1336191	       922.0 ns/op	   1084584 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	   10000	    118028 ns/op	      8473 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   81380	     14834 ns/op	     67411 tasks/s	     315 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1763432	       663.0 ns/op	   1508204 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1768484	       714.4 ns/op	   1399745 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  681982	      1868 ns/op	    535287 tasks/s	     278 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1291682	       913.5 ns/op	   1094691 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 2238454	       543.9 ns/op	       333.0 p50-ns	      3125 p99-ns	      9250 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1455924	       847.7 ns/op	     18959 p50-ns	    129834 p99-ns	    209542 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5748259	       208.6 ns/op	   4793674 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2906436	       408.4 ns/op	   2448737 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  649508	      1854 ns/op	    539343 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1315111	       906.6 ns/op	   1103073 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	   10000	    122352 ns/op	      8173 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   81052	     14839 ns/op	     67390 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 5004828	       214.8 ns/op	   4656518 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1000000	      1055 ns/op	    948139 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  636295	      1917 ns/op	    521748 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  517076	      2215 ns/op	    451399 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 4020345	       293.8 ns/op	       167.0 p50-ns	      2125 p99-ns	      7334 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  946854	      1421 ns/op	     17084 p50-ns	    454375 p99-ns	    896042 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 3548233	       356.7 ns/op	   2803256 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 2117175	       563.7 ns/op	   1774061 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  757310	      1574 ns/op	    635420 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1526079	       777.5 ns/op	   1286133 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	   10000	    118911 ns/op	      8410 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   80233	     14899 ns/op	     67118 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1367793	       899.0 ns/op	   1112381 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1898602	       606.9 ns/op	   1647818 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  576463	      1986 ns/op	    503492 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1441376	       855.6 ns/op	   1168779 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  883366	      1321 ns/op	      1041 p50-ns	      3500 p99-ns	     10666 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1695937	       724.7 ns/op	     15709 p50-ns	    115458 p99-ns	    186875 p99.9-ns	     345 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	58552057	        20.34 ns/op	  49172496 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	12371138	        91.86 ns/op	  10886651 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  861733	      1400 ns/op	    714057 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2492167	       490.4 ns/op	   2039228 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9938	    119691 ns/op	      8355 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   80434	     14941 ns/op	     66928 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	14397026	        79.42 ns/op	  12591060 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	24764905	        45.26 ns/op	  22093429 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  818755	      1562 ns/op	    640274 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2516716	       459.9 ns/op	   2174536 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 4208162	       281.7 ns/op	       166.0 p50-ns	      2167 p99-ns	      7958 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 3018231	       410.7 ns/op	       667.0 p50-ns	     46583 p99-ns	    103792 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5640193	       211.7 ns/op	   4723627 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2922810	       407.8 ns/op	   2452258 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  638661	      1897 ns/op	    527186 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1419582	       864.9 ns/op	   1156225 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	   10000	    119927 ns/op	      8338 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   80408	     14944 ns/op	     66919 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 5258235	       221.4 ns/op	   4516949 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1275828	       926.6 ns/op	   1079263 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  619120	      1884 ns/op	    530703 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  653906	      1915 ns/op	    522216 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3931550	       305.3 ns/op	       167.0 p50-ns	      2167 p99-ns	      8084 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	 1000000	      1273 ns/op	     16167 p50-ns	    393833 p99-ns	    766208 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 3023372	       406.7 ns/op	   2458550 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 2259729	       543.4 ns/op	   1840330 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  759628	      1616 ns/op	    618661 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1527248	       784.3 ns/op	   1275048 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	   10000	    120751 ns/op	      8281 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   80332	     14792 ns/op	     67605 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1273239	      1033 ns/op	    968314 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1698406	       705.2 ns/op	   1418122 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  624404	      1797 ns/op	    556511 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1215 ns/op	    822885 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  775759	      1431 ns/op	      1208 p50-ns	      2916 p99-ns	      9500 p99.9-ns	     360 B/op	       8 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1546404	       670.8 ns/op	      1625 p50-ns	    454833 p99-ns	   2225500 p99.9-ns	     358 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	63948132	        20.97 ns/op	  47696474 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	24940657	        43.80 ns/op	  22831038 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  827378	      1481 ns/op	    675035 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 1891185	       647.6 ns/op	   1544236 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9920	    120697 ns/op	      8285 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   80061	     14953 ns/op	     66877 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	20932118	        53.09 ns/op	  18837279 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	31218394	        32.32 ns/op	  30943826 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  780908	      1584 ns/op	    631122 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 1936345	       602.0 ns/op	   1661003 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 3828638	       302.3 ns/op	       167.0 p50-ns	      1750 p99-ns	     12083 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 3348456	       351.6 ns/op	       375.0 p50-ns	     57375 p99-ns	    260625 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 4484835	       269.2 ns/op	   3714885 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 2101320	       624.0 ns/op	   1602623 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  667646	      1628 ns/op	    614085 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1135 ns/op	    880838 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9600	    125783 ns/op	      7950 tasks/s	     304 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   77587	     15395 ns/op	     64955 tasks/s	     317 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 2585589	       474.9 ns/op	   2105860 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 2150564	       518.7 ns/op	   1927849 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  578372	      2022 ns/op	    494649 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1000000	      1068 ns/op	    936360 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 2031223	       644.2 ns/op	       375.0 p50-ns	      4125 p99-ns	     15542 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1457286	       808.9 ns/op	     13708 p50-ns	    167083 p99-ns	    376500 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 3466354	       370.2 ns/op	   2700992 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1744652	       629.9 ns/op	   1587479 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  652287	      1799 ns/op	    555999 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1000000	      1001 ns/op	    999383 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	   10000	    119008 ns/op	      8403 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   80704	     14969 ns/op	     66805 tasks/s	     231 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1632375	       678.2 ns/op	   1474501 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1649307	       714.3 ns/op	   1400067 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  507175	      2319 ns/op	    431259 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1062 ns/op	    942026 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  697675	      1654 ns/op	      1250 p50-ns	      9875 p99-ns	     18625 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1334427	       879.1 ns/op	      7334 p50-ns	    239667 p99-ns	    518208 p99.9-ns	     350 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	53748088	        22.06 ns/op	  45332757 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	18676897	        61.06 ns/op	  16377413 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  830100	      1573 ns/op	    635873 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 1964371	       611.9 ns/op	   1634155 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9999	    118436 ns/op	      8443 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   81067	     14823 ns/op	     67465 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	19364650	        55.50 ns/op	  18019130 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	30306345	        37.78 ns/op	  26469936 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  774375	      1616 ns/op	    618935 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2165359	       566.4 ns/op	   1765450 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 3830902	       314.7 ns/op	       167.0 p50-ns	      2333 p99-ns	     13083 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 3352904	       332.0 ns/op	       375.0 p50-ns	     54208 p99-ns	    234250 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 4005408	       316.3 ns/op	   3161441 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1799266	       653.2 ns/op	   1530843 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  711999	      1652 ns/op	    605452 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1213921	      1025 ns/op	    975225 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	   10000	    118563 ns/op	      8434 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   80774	     14806 ns/op	     67539 tasks/s	     315 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 2370886	       530.5 ns/op	   1885082 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 2049141	       585.0 ns/op	   1709486 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  537229	      2135 ns/op	    468429 tasks/s	     273 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1246279	      1108 ns/op	    902834 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 1711636	       653.4 ns/op	       375.0 p50-ns	      3917 p99-ns	     15375 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1258647	       900.6 ns/op	     12583 p50-ns	    220167 p99-ns	    649292 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 4642891	       251.0 ns/op	   3983574 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 3207141	       385.3 ns/op	   2595501 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  534846	      2223 ns/op	    449770 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1028 ns/op	    972836 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9730	    119335 ns/op	      8380 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   81132	     14822 ns/op	     67469 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 4691988	       257.4 ns/op	   3884933 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1271126	       980.2 ns/op	   1020189 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  504392	      2193 ns/op	    456014 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  675920	      1791 ns/op	    558465 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3059852	       363.7 ns/op	       208.0 p50-ns	      3167 p99-ns	     13500 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  999052	      1273 ns/op	     14417 p50-ns	    412417 p99-ns	    885750 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	47934248	        25.77 ns/op	  38811838 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	13937470	        80.54 ns/op	  12415846 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  797422	      1540 ns/op	    649224 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2020579	       613.8 ns/op	   1629308 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	   10000	    118200 ns/op	      8460 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   81174	     14727 ns/op	     67902 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	16834544	        66.69 ns/op	  14995715 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	32992846	        37.93 ns/op	  26360935 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  596893	      1753 ns/op	    570326 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2232163	       519.0 ns/op	   1926705 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 3631402	       327.3 ns/op	       167.0 p50-ns	      2958 p99-ns	     12334 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2905837	       420.5 ns/op	       500.0 p50-ns	     55708 p99-ns	    162500 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 3390426	       324.4 ns/op	   3082237 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1392630	       896.3 ns/op	   1115653 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  692931	      1631 ns/op	    613046 tasks/s	     273 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1028 ns/op	    972453 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9834	    123482 ns/op	      8098 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   78597	     15258 ns/op	     65539 tasks/s	     317 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1920457	       668.3 ns/op	   1496311 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1621378	       697.0 ns/op	   1434674 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  494827	      2385 ns/op	    419296 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1000000	      1014 ns/op	    986437 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 1960688	       617.9 ns/op	       375.0 p50-ns	      3583 p99-ns	     13291 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1250773	       958.4 ns/op	     20417 p50-ns	    159541 p99-ns	    302041 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5105133	       227.3 ns/op	   4398819 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2441775	       452.8 ns/op	   2208250 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  639400	      2018 ns/op	    495460 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1083 ns/op	    923414 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9748	    121062 ns/op	      8260 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   79327	     15034 ns/op	     66518 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 5417320	       230.4 ns/op	   4340884 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1260296	       948.2 ns/op	   1054655 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  568389	      2021 ns/op	    494810 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  604332	      2019 ns/op	    495181 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3894312	       335.8 ns/op	       167.0 p50-ns	      2584 p99-ns	     12416 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  960182	      1362 ns/op	     17250 p50-ns	    428417 p99-ns	    857333 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 4035854	       306.4 ns/op	   3263424 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1532872	       756.6 ns/op	   1321667 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  777117	      1669 ns/op	    599003 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1000000	      1018 ns/op	    981999 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9747	    121272 ns/op	      8246 tasks/s	     233 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   78004	     15265 ns/op	     65509 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1207999	      1056 ns/op	    946908 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1423444	       816.5 ns/op	   1224665 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  510600	      2479 ns/op	    403311 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	  981330	      1166 ns/op	    857819 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  658797	      1641 ns/op	      1167 p50-ns	     10583 p99-ns	     21666 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1000000	      1017 ns/op	     21166 p50-ns	    176875 p99-ns	    322750 p99.9-ns	     347 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 4043247	       278.7 ns/op	   3588426 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1327018	       909.4 ns/op	   1099650 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  823249	      1509 ns/op	    662791 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1094 ns/op	    914209 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9718	    121727 ns/op	      8215 tasks/s	     304 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   78350	     15226 ns/op	     65675 tasks/s	     317 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1906551	       644.1 ns/op	   1552610 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1683412	       710.5 ns/op	   1407498 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  576975	      2164 ns/op	    462012 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1218765	       973.9 ns/op	   1026818 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 1935434	       611.7 ns/op	       417.0 p50-ns	      3209 p99-ns	     11833 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1360370	       911.0 ns/op	     20458 p50-ns	    139041 p99-ns	    252542 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5796084	       211.8 ns/op	   4721378 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2758206	       421.4 ns/op	   2372942 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  646611	      1895 ns/op	    527606 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1062 ns/op	    941451 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9860	    121496 ns/op	      8231 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   79255	     15127 ns/op	     66107 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 5497662	       225.3 ns/op	   4438980 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1243824	       924.0 ns/op	   1082287 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  635304	      1942 ns/op	    515018 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  558232	      2057 ns/op	    486170 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 4008100	       306.8 ns/op	       167.0 p50-ns	      1959 p99-ns	      9625 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  889602	      1337 ns/op	     18208 p50-ns	    412250 p99-ns	    813417 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 3787308	       311.1 ns/op	   3214379 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1623643	       740.8 ns/op	   1349810 tasks/s	     231 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  779511	      1613 ns/op	    619924 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1297305	       932.6 ns/op	   1072305 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9848	    121037 ns/op	      8262 tasks/s	     233 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   78273	     15372 ns/op	     65054 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1000000	      1008 ns/op	    992443 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1450258	       866.0 ns/op	   1154681 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  550183	      2422 ns/op	    412935 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1108 ns/op	    902163 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  669489	      1644 ns/op	      1334 p50-ns	      6458 p99-ns	     15708 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1232376	       944.1 ns/op	     23458 p50-ns	    129708 p99-ns	    240792 p99.9-ns	     344 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	56322603	        21.36 ns/op	  46826212 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	14301732	        76.24 ns/op	  13115915 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  888495	      1365 ns/op	    732526 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2287422	       526.6 ns/op	   1898830 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9841	    120511 ns/op	      8298 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   80704	     14978 ns/op	     66765 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	17116062	        75.29 ns/op	  13282375 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	33350954	        44.29 ns/op	  22576362 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  777577	      1523 ns/op	    656487 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2191561	       540.4 ns/op	   1850400 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 3637292	       316.4 ns/op	       167.0 p50-ns	      3041 p99-ns	     11875 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 3009442	       407.9 ns/op	       458.0 p50-ns	     54625 p99-ns	    149334 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5244981	       219.3 ns/op	   4559927 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2782632	       432.0 ns/op	   2314634 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  636758	      2056 ns/op	    486271 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1011 ns/op	    989100 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	   10000	    121858 ns/op	      8206 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   78950	     15038 ns/op	     66497 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 4353285	       258.4 ns/op	   3870018 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1324598	       911.9 ns/op	   1096635 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  561636	      2012 ns/op	    496897 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  557396	      1877 ns/op	    532879 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3603202	       343.5 ns/op	       167.0 p50-ns	      3042 p99-ns	     12125 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  932736	      1309 ns/op	     16291 p50-ns	    416625 p99-ns	    868750 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 2999912	       395.4 ns/op	   2528999 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1613883	       708.1 ns/op	   1412206 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  680126	      1673 ns/op	    597596 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1277174	       960.7 ns/op	   1040935 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9805	    120771 ns/op	      8280 tasks/s	     233 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   78475	     15296 ns/op	     65375 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1000000	      1047 ns/op	    955150 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1391065	       861.0 ns/op	   1161409 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  532002	      2389 ns/op	    418584 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1140 ns/op	    876990 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  683534	      1640 ns/op	      1333 p50-ns	      7375 p99-ns	     16208 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1226515	       980.6 ns/op	     23666 p50-ns	    144292 p99-ns	    283583 p99.9-ns	     344 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	54830302	        21.69 ns/op	  46101698 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	15602466	        84.09 ns/op	  11892402 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  880518	      1378 ns/op	    725642 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2201210	       555.3 ns/op	   1800932 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9997	    119447 ns/op	      8372 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   80816	     14842 ns/op	     67376 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	17638974	        71.38 ns/op	  14010296 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	32409439	        42.91 ns/op	  23306063 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  813416	      1448 ns/op	    690436 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2178582	       572.4 ns/op	   1746954 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 4178643	       280.8 ns/op	       167.0 p50-ns	      1500 p99-ns	     10625 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2812131	       413.3 ns/op	       500.0 p50-ns	     52791 p99-ns	    121875 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 4794097	       242.6 ns/op	   4121966 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1385865	       871.4 ns/op	   1147515 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  836780	      1503 ns/op	    665434 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1067 ns/op	    937060 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9897	    119905 ns/op	      8340 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   80246	     14970 ns/op	     66801 tasks/s	     316 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 2069488	       616.3 ns/op	   1622692 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1656439	       723.1 ns/op	   1382889 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  673297	      2217 ns/op	    451025 tasks/s	     273 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1000000	      1062 ns/op	    941395 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 1936405	       633.6 ns/op	       375.0 p50-ns	      4083 p99-ns	     15125 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1215652	       992.7 ns/op	     22042 p50-ns	    155584 p99-ns	    279500 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 4136715	       328.4 ns/op	   3045263 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1434277	       795.4 ns/op	   1257207 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  645536	      1766 ns/op	    566169 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1215398	       939.5 ns/op	   1064394 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9964	    119813 ns/op	      8346 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   80276	     14970 ns/op	     66801 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1213872	      1028 ns/op	    972441 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1401789	       878.5 ns/op	   1138351 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  531266	      2355 ns/op	    424594 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1223 ns/op	    817955 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  761922	      1613 ns/op	      1333 p50-ns	      6125 p99-ns	     16042 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1185898	      1072 ns/op	     25084 p50-ns	    164500 p99-ns	    320708 p99.9-ns	     345 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	50554785	        21.97 ns/op	  45525366 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	13717276	        75.97 ns/op	  13163530 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  782691	      1545 ns/op	    647431 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 1982016	       614.0 ns/op	   1628649 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	   10000	    118769 ns/op	      8420 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   81090	     14790 ns/op	     67612 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	16808232	        71.43 ns/op	  14000525 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	33327688	        41.23 ns/op	  24251403 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  763910	      1571 ns/op	    636568 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2036492	       567.5 ns/op	   1762022 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 4344063	       277.1 ns/op	       167.0 p50-ns	      1458 p99-ns	      9875 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2976057	       406.2 ns/op	       459.0 p50-ns	     53625 p99-ns	    133458 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 4855047	       242.9 ns/op	   4117631 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1443734	       865.7 ns/op	   1155099 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  799810	      1594 ns/op	    627234 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1037 ns/op	    964620 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9852	    119133 ns/op	      8394 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   80671	     14880 ns/op	     67206 tasks/s	     316 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 2002266	       600.3 ns/op	   1665894 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1660209	       711.9 ns/op	   1404767 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  537073	      1944 ns/op	    514504 tasks/s	     273 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1000000	      1036 ns/op	    965012 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 2015404	       605.9 ns/op	       375.0 p50-ns	      3500 p99-ns	     13417 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1235642	      1019 ns/op	     22125 p50-ns	    165125 p99-ns	    287291 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5742302	       208.1 ns/op	   4804601 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2985645	       404.7 ns/op	   2471047 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  656761	      1984 ns/op	    504035 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1065 ns/op	    939255 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9919	    120413 ns/op	      8305 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   80514	     14888 ns/op	     67170 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 5318205	       221.1 ns/op	   4523805 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1000000	      1028 ns/op	    972694 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  531331	      2089 ns/op	    478623 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  532383	      2365 ns/op	    422814 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3570260	       330.6 ns/op	       167.0 p50-ns	      2334 p99-ns	     13667 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  836671	      1510 ns/op	     19166 p50-ns	    477167 p99-ns	    953334 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	52174762	        22.93 ns/op	  43611681 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	18387739	        64.03 ns/op	  15618629 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  850380	      1536 ns/op	    650966 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2022758	       614.7 ns/op	   1626857 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	   10000	    119034 ns/op	      8401 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   80907	     14841 ns/op	     67379 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	16460528	        73.82 ns/op	  13546677 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	31186314	        35.88 ns/op	  27874230 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  799861	      1622 ns/op	    616387 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 1955577	       582.4 ns/op	   1717086 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 4219480	       280.7 ns/op	       167.0 p50-ns	      1459 p99-ns	     10459 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2677612	       420.0 ns/op	       459.0 p50-ns	     54791 p99-ns	    143417 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 4767451	       257.5 ns/op	   3883343 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1518704	       806.5 ns/op	   1239891 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  742309	      1585 ns/op	    630842 tasks/s	     273 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1249615	       927.6 ns/op	   1078049 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	   10000	    119862 ns/op	      8343 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   81016	     14763 ns/op	     67737 tasks/s	     315 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1744516	       657.4 ns/op	   1521069 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1556469	       771.8 ns/op	   1295668 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  543195	      2077 ns/op	    481464 tasks/s	     273 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1000000	      1082 ns/op	    924524 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 2144662	       571.7 ns/op	       375.0 p50-ns	      3583 p99-ns	     13708 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1000000	      1032 ns/op	     22125 p50-ns	    169667 p99-ns	    296208 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5484572	       220.0 ns/op	   4544910 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 3161898	       395.7 ns/op	   2527415 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  553839	      2057 ns/op	    486180 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1069 ns/op	    935833 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	   10000	    118039 ns/op	      8472 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   81074	     14723 ns/op	     67921 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 5440303	       214.4 ns/op	   4663653 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1246903	      1037 ns/op	    964192 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  591849	      2041 ns/op	    490050 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  514106	      2257 ns/op	    443156 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3570232	       305.4 ns/op	       167.0 p50-ns	      1542 p99-ns	     10834 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  794570	      1325 ns/op	     17000 p50-ns	    416041 p99-ns	    839834 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 2729853	       464.4 ns/op	   2153290 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1462572	       792.5 ns/op	   1261834 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  605694	      2008 ns/op	    498055 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1000000	      1028 ns/op	    972995 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9757	    122276 ns/op	      8178 tasks/s	     233 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   78618	     15293 ns/op	     65391 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1202694	      1073 ns/op	    932286 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1526490	       781.5 ns/op	   1279614 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  425214	      2766 ns/op	    361542 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1135 ns/op	    881072 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  620726	      1821 ns/op	      1000 p50-ns	     12417 p99-ns	     23167 p99.9-ns	     359 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1272690	       899.6 ns/op	     18375 p50-ns	    152125 p99-ns	    268917 p99.9-ns	     346 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 3028911	       449.0 ns/op	   2227044 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1273374	       903.9 ns/op	   1106270 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  715566	      1667 ns/op	    599979 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1062 ns/op	    941658 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	   10000	    122254 ns/op	      8180 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   78734	     15229 ns/op	     65666 tasks/s	     317 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1765671	       668.4 ns/op	   1496074 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1830308	       650.8 ns/op	   1536457 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  468732	      2487 ns/op	    402135 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1249300	       961.3 ns/op	   1040268 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 1712706	       708.9 ns/op	       333.0 p50-ns	      9750 p99-ns	     18125 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1309658	       938.3 ns/op	     19458 p50-ns	    155708 p99-ns	    259167 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 4288630	       282.8 ns/op	   3536355 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2277092	       529.2 ns/op	   1889699 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  486138	      2444 ns/op	    409249 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1081 ns/op	    924816 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9560	    122444 ns/op	      8167 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   78944	     15201 ns/op	     65784 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 3614806	       318.9 ns/op	   3136078 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1419076	       848.9 ns/op	   1178022 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  476146	      2431 ns/op	    411393 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  696182	      1790 ns/op	    558789 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 2886442	       394.6 ns/op	       167.0 p50-ns	      6083 p99-ns	     14041 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	 1000000	      1167 ns/op	     14375 p50-ns	    367292 p99-ns	    754333 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 2273388	       538.6 ns/op	   1856506 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1519927	       763.0 ns/op	   1310601 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  604354	      1973 ns/op	    506841 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1205139	       989.5 ns/op	   1010632 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9781	    122386 ns/op	      8171 tasks/s	     233 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   78321	     15295 ns/op	     65382 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1000000	      1069 ns/op	    935639 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1521032	       790.2 ns/op	   1265464 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  424260	      2723 ns/op	    367277 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1125 ns/op	    889193 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  708218	      1845 ns/op	      1041 p50-ns	     12416 p99-ns	     22708 p99.9-ns	     359 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1313601	       918.5 ns/op	     18875 p50-ns	    156208 p99-ns	    266375 p99.9-ns	     346 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	51442075	        24.14 ns/op	  41427678 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	13698459	        78.96 ns/op	  12663920 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  765244	      1655 ns/op	    604087 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2043813	       582.7 ns/op	   1716126 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9789	    122157 ns/op	      8186 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   78789	     15222 ns/op	     65695 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	14134032	        72.98 ns/op	  13701642 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	40004188	        28.36 ns/op	  35257803 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  649088	      1810 ns/op	    552621 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2226314	       564.6 ns/op	   1771147 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 2966140	       368.2 ns/op	       166.0 p50-ns	      4792 p99-ns	     13708 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2827000	       464.5 ns/op	       541.0 p50-ns	     71791 p99-ns	    160500 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 4805910	       246.7 ns/op	   4052705 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2273342	       517.2 ns/op	   1933400 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  511784	      2452 ns/op	    407876 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1069 ns/op	    935732 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9627	    122528 ns/op	      8161 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   78470	     15276 ns/op	     65460 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 4087436	       280.2 ns/op	   3568355 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1401453	       871.4 ns/op	   1147564 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  526941	      2428 ns/op	    411804 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  686947	      1774 ns/op	    563779 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3482767	       411.5 ns/op	       167.0 p50-ns	      8458 p99-ns	     14583 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	 1000000	      1139 ns/op	     14292 p50-ns	    356834 p99-ns	    727292 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 2201152	       527.7 ns/op	   1895087 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1483474	       770.2 ns/op	   1298424 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  600124	      2004 ns/op	    499060 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1000000	      1010 ns/op	    989898 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9522	    122529 ns/op	      8161 tasks/s	     234 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   78320	     15294 ns/op	     65385 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1000000	      1071 ns/op	    933330 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1512038	       769.7 ns/op	   1299262 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  423944	      2775 ns/op	    360329 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1137 ns/op	    879695 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  684939	      1920 ns/op	      1042 p50-ns	     12583 p99-ns	     22334 p99.9-ns	     359 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1282592	       926.9 ns/op	     18791 p50-ns	    157583 p99-ns	    282292 p99.9-ns	     347 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	52970776	        24.73 ns/op	  40444826 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	14537840	        80.16 ns/op	  12475017 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  786231	      1482 ns/op	    674766 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 1954930	       607.6 ns/op	   1645939 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9722	    121357 ns/op	      8240 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   79425	     15089 ns/op	     66275 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	17095244	        69.70 ns/op	  14347046 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	35877969	        28.58 ns/op	  34985506 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  684277	      2017 ns/op	    495898 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2189492	       593.4 ns/op	   1685288 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 3168218	       396.3 ns/op	       167.0 p50-ns	      8125 p99-ns	     14084 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2718116	       426.1 ns/op	       417.0 p50-ns	     67458 p99-ns	    168084 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 2683742	       433.5 ns/op	   2307055 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1308590	       919.6 ns/op	   1087403 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  727393	      1659 ns/op	    602852 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1039 ns/op	    962769 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9982	    122371 ns/op	      8172 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   78987	     15260 ns/op	     65531 tasks/s	     316 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1885858	       658.5 ns/op	   1518687 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1825861	       661.0 ns/op	   1512880 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  482356	      2496 ns/op	    400648 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1254198	       961.3 ns/op	   1040228 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 1680843	       708.4 ns/op	       333.0 p50-ns	      9667 p99-ns	     18583 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1295046	       926.1 ns/op	     19708 p50-ns	    150750 p99-ns	    255875 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 2335400	       549.7 ns/op	   1819218 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1593648	       804.5 ns/op	   1243045 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  609098	      2004 ns/op	    498984 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1217361	      1001 ns/op	    998711 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9666	    122386 ns/op	      8171 tasks/s	     233 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   78348	     15302 ns/op	     65350 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1000000	      1042 ns/op	    960090 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1525930	       773.8 ns/op	   1292309 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  419344	      2793 ns/op	    358051 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	  982166	      1177 ns/op	    849778 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  694134	      1933 ns/op	      1125 p50-ns	     12500 p99-ns	     22167 p99.9-ns	     359 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1272244	       919.6 ns/op	     18875 p50-ns	    156834 p99-ns	    270333 p99.9-ns	     347 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	54067550	        22.77 ns/op	  43913452 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	13910986	        75.20 ns/op	  13298434 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  782023	      1571 ns/op	    636713 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2046021	       582.9 ns/op	   1715643 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9684	    122228 ns/op	      8181 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   78602	     15237 ns/op	     65631 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	13859820	        82.04 ns/op	  12188768 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	27223693	        37.56 ns/op	  26625968 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  729300	      1781 ns/op	    561418 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2152276	       547.7 ns/op	   1825757 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 3049512	       389.1 ns/op	       167.0 p50-ns	      6750 p99-ns	     14000 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2711182	       433.1 ns/op	       458.0 p50-ns	     67584 p99-ns	    161708 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 2742782	       449.1 ns/op	   2226648 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1273496	       896.4 ns/op	   1115513 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  718413	      1613 ns/op	    619990 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1027 ns/op	    973574 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9733	    122368 ns/op	      8172 tasks/s	     304 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   78254	     15274 ns/op	     65471 tasks/s	     317 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1792414	       668.6 ns/op	   1495685 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1766845	       701.4 ns/op	   1425650 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  472803	      2497 ns/op	    400410 tasks/s	     273 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1253166	       962.8 ns/op	   1038598 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 1727835	       693.3 ns/op	       333.0 p50-ns	      9584 p99-ns	     18708 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1263757	       945.9 ns/op	     19250 p50-ns	    157792 p99-ns	    275958 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 4137565	       280.7 ns/op	   3562867 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2499144	       526.4 ns/op	   1899608 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  506001	      2425 ns/op	    412318 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1090 ns/op	    917739 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9555	    122442 ns/op	      8167 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   78349	     15260 ns/op	     65530 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 3698518	       320.3 ns/op	   3121762 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1389890	       848.2 ns/op	   1178927 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  480454	      2504 ns/op	    399357 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  723544	      1741 ns/op	    574268 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3571545	       396.0 ns/op	       167.0 p50-ns	      6417 p99-ns	     14167 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	 1000000	      1151 ns/op	     14125 p50-ns	    361167 p99-ns	    749834 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	52367826	        23.05 ns/op	  43378857 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	15022846	        78.40 ns/op	  12755794 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  794727	      1592 ns/op	    628022 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2084040	       623.6 ns/op	   1603519 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9818	    122060 ns/op	      8193 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   78861	     15214 ns/op	     65730 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	15477488	        76.22 ns/op	  13119115 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	33612385	        30.15 ns/op	  33171559 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  698377	      1793 ns/op	    557761 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2118850	       574.1 ns/op	   1741999 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 3201271	       377.0 ns/op	       167.0 p50-ns	      5167 p99-ns	     14167 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2687368	       445.0 ns/op	       458.0 p50-ns	     72125 p99-ns	    167416 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 3042817	       411.4 ns/op	   2430819 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1294378	       917.5 ns/op	   1089916 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  719586	      1658 ns/op	    603032 tasks/s	     273 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1001 ns/op	    998906 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9744	    122631 ns/op	      8155 tasks/s	     304 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   78229	     15320 ns/op	     65276 tasks/s	     317 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1825119	       660.2 ns/op	   1514689 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1777453	       672.1 ns/op	   1487903 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  502815	      2422 ns/op	    412830 tasks/s	     275 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1230733	       954.1 ns/op	   1048055 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 1702819	       710.8 ns/op	       333.0 p50-ns	      9708 p99-ns	     17750 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1321821	       936.5 ns/op	     19500 p50-ns	    155208 p99-ns	    262791 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 4351725	       276.3 ns/op	   3619348 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2309523	       540.9 ns/op	   1848769 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  480735	      2395 ns/op	    417490 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1080 ns/op	    926352 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9704	    122070 ns/op	      8192 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   78350	     15306 ns/op	     65334 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 3930866	       271.2 ns/op	   3687067 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1347222	       854.3 ns/op	   1170606 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  499429	      2401 ns/op	    416488 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  740932	      1785 ns/op	    560220 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 2797311	       412.0 ns/op	       167.0 p50-ns	      8541 p99-ns	     14291 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	 1000000	      1141 ns/op	     14167 p50-ns	    359334 p99-ns	    728875 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 2266264	       512.7 ns/op	   1950476 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1518447	       783.7 ns/op	   1275997 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  609154	      2017 ns/op	    495673 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1000000	      1007 ns/op	    993499 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9771	    122772 ns/op	      8145 tasks/s	     233 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   78084	     15269 ns/op	     65494 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1000000	      1047 ns/op	    955432 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1531430	       773.3 ns/op	   1293215 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  432397	      2795 ns/op	    357767 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1124 ns/op	    889551 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  568986	      1891 ns/op	      1041 p50-ns	     12583 p99-ns	     22750 p99.9-ns	     359 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1287619	       978.8 ns/op	     19667 p50-ns	    168917 p99-ns	    309666 p99.9-ns	     347 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 2660504	       443.3 ns/op	   2255600 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1266190	       947.1 ns/op	   1055910 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  693114	      1694 ns/op	    590294 tasks/s	     273 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1038 ns/op	    963376 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9757	    121635 ns/op	      8221 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   79338	     15195 ns/op	     65812 tasks/s	     316 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1878879	       652.0 ns/op	   1533729 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1784778	       675.9 ns/op	   1479536 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  483529	      2486 ns/op	    402279 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1216126	       971.2 ns/op	   1029631 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 1690318	       718.4 ns/op	       333.0 p50-ns	      9792 p99-ns	     17584 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1324562	       962.8 ns/op	     19875 p50-ns	    159458 p99-ns	    271041 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 4351089	       278.2 ns/op	   3594865 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2325900	       525.8 ns/op	   1902030 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  519984	      2299 ns/op	    434999 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1077 ns/op	    928216 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9770	    122599 ns/op	      8157 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   78544	     15237 ns/op	     65631 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 3447949	       346.1 ns/op	   2889026 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1374836	       883.3 ns/op	   1132159 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  482034	      2526 ns/op	    395954 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  770542	      1740 ns/op	    574578 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3033970	       400.0 ns/op	       167.0 p50-ns	      6959 p99-ns	     14084 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	 1000000	      1165 ns/op	     14417 p50-ns	    364959 p99-ns	    743375 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 2421979	       519.8 ns/op	   1923738 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1478536	       815.1 ns/op	   1226853 tasks/s	     231 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  606177	      2006 ns/op	    498480 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1000000	      1057 ns/op	    945952 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9596	    122006 ns/op	      8196 tasks/s	     233 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   78619	     15206 ns/op	     65762 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1000000	      1008 ns/op	    991962 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1375029	       741.2 ns/op	   1349116 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  434984	      2853 ns/op	    350558 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1188 ns/op	    841972 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  714802	      2018 ns/op	      1125 p50-ns	     12958 p99-ns	     24250 p99.9-ns	     359 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1268960	       972.5 ns/op	     20333 p50-ns	    163792 p99-ns	    275792 p99.9-ns	     346 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	46801872	        26.52 ns/op	  37707233 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	15653143	        73.24 ns/op	  13654607 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  725402	      1613 ns/op	    620018 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2003431	       600.8 ns/op	   1664410 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9650	    122158 ns/op	      8186 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   78567	     15197 ns/op	     65801 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	16073527	        68.94 ns/op	  14505945 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	38972755	        35.15 ns/op	  28452247 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  675938	      1786 ns/op	    560043 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2039192	       556.8 ns/op	   1796113 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 3171315	       362.2 ns/op	       167.0 p50-ns	      4208 p99-ns	     13583 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2635106	       436.0 ns/op	       417.0 p50-ns	     68959 p99-ns	    163417 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 4971381	       278.8 ns/op	   3586468 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2416066	       516.7 ns/op	   1935342 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  512886	      2313 ns/op	    432410 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1000000	      1070 ns/op	    934510 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9704	    122054 ns/op	      8193 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   79107	     15194 ns/op	     65816 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 3568027	       320.8 ns/op	   3116826 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1343762	       889.4 ns/op	   1124308 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  484443	      2445 ns/op	    409030 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  651598	      1967 ns/op	    508434 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3508234	       407.4 ns/op	       167.0 p50-ns	      8542 p99-ns	     14334 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	 1000000	      1123 ns/op	     13917 p50-ns	    352083 p99-ns	    716541 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 2194500	       495.0 ns/op	   2020031 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 1538215	       783.5 ns/op	   1276341 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  593157	      2003 ns/op	    499161 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1000000	      1003 ns/op	    996853 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9897	    122166 ns/op	      8186 tasks/s	     233 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   78423	     15288 ns/op	     65411 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1000000	      1047 ns/op	    955063 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1523768	       788.7 ns/op	   1267927 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  432270	      2757 ns/op	    362687 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1112 ns/op	    899131 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  725080	      1775 ns/op	      1000 p50-ns	     12458 p99-ns	     22625 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1274539	       937.9 ns/op	     19083 p50-ns	    160125 p99-ns	    263416 p99.9-ns	     346 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	47640315	        23.95 ns/op	  41748450 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	17306422	        77.03 ns/op	  12981885 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  738999	      1728 ns/op	    578776 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2054114	       584.1 ns/op	   1711892 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9780	    122070 ns/op	      8192 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   78824	     15203 ns/op	     65778 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	15036534	        76.85 ns/op	  13011929 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	34502257	        36.86 ns/op	  27132767 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  676592	      1747 ns/op	    572571 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2086791	       539.9 ns/op	   1852035 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 3235280	       379.5 ns/op	       167.0 p50-ns	      5333 p99-ns	     13875 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2753016	       445.0 ns/op	       458.0 p50-ns	     71458 p99-ns	    165000 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 2950052	       394.8 ns/op	   2532957 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1332768	       925.3 ns/op	   1080687 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  703422	      1703 ns/op	    587241 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1000000	      1029 ns/op	    972085 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9699	    122174 ns/op	      8185 tasks/s	     304 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   78769	     15242 ns/op	     65608 tasks/s	     317 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1855519	       653.4 ns/op	   1530374 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1812703	       653.5 ns/op	   1530228 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  470919	      2506 ns/op	    399121 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1259295	       964.5 ns/op	   1036839 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 1699592	       709.6 ns/op	       333.0 p50-ns	      9750 p99-ns	     17958 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1442107	       805.4 ns/op	     18334 p50-ns	    120708 p99-ns	    198459 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 3269940	       343.6 ns/op	   2910147 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 2130420	       581.0 ns/op	   1721312 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  717638	      1748 ns/op	    572150 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1248632	       938.5 ns/op	   1065530 tasks/s	     226 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9356	    118316 ns/op	      8452 tasks/s	     234 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   80775	     14788 ns/op	     67620 tasks/s	     231 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 2587838	       669.1 ns/op	   1494451 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1693407	       713.8 ns/op	   1400956 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  642194	      2005 ns/op	    498639 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1175 ns/op	    850979 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  812133	      1347 ns/op	      1000 p50-ns	      5500 p99-ns	     12750 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1261842	       977.4 ns/op	     19166 p50-ns	    167959 p99-ns	    270125 p99.9-ns	     347 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	57865603	        20.80 ns/op	  48079982 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	12342768	        84.91 ns/op	  11777252 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  856747	      1431 ns/op	    698899 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2109278	       525.1 ns/op	   1904350 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	   10000	    117878 ns/op	      8483 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   81714	     14695 ns/op	     68051 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	14651067	        78.07 ns/op	  12809484 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	29916079	        39.44 ns/op	  25356648 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  850136	      1420 ns/op	    703992 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2420580	       513.9 ns/op	   1945780 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 4401750	       269.2 ns/op	       166.0 p50-ns	      2083 p99-ns	      7416 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2828588	       411.9 ns/op	       625.0 p50-ns	     48666 p99-ns	     93125 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 3665763	       327.7 ns/op	   3051871 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1455637	       832.9 ns/op	   1200668 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  799654	      1538 ns/op	    650015 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1301746	       926.0 ns/op	   1079908 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    8863	    118600 ns/op	      8432 tasks/s	     307 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   81224	     15048 ns/op	     66456 tasks/s	     315 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1816956	       618.8 ns/op	   1615957 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1963290	       606.3 ns/op	   1649470 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  695983	      1736 ns/op	    576133 tasks/s	     275 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1561197	       920.3 ns/op	   1086589 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 2080986	       553.8 ns/op	       333.0 p50-ns	      3459 p99-ns	      9500 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1415732	       847.3 ns/op	     18000 p50-ns	    139709 p99-ns	    297833 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5444190	       219.0 ns/op	   4565521 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2724745	       377.9 ns/op	   2645897 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  572090	      2085 ns/op	    479521 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1568846	       720.4 ns/op	   1388084 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9849	    118851 ns/op	      8414 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   81010	     14773 ns/op	     67691 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 5945851	       188.6 ns/op	   5302905 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 2046300	       826.9 ns/op	   1209344 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  654565	      1862 ns/op	    537089 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  547516	      2230 ns/op	    448372 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 4056355	       296.5 ns/op	       167.0 p50-ns	      2125 p99-ns	      7458 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  872398	      1443 ns/op	     17541 p50-ns	    462792 p99-ns	    902750 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	59078982	        19.93 ns/op	  50185069 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	13121660	        92.75 ns/op	  10781672 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  851365	      1413 ns/op	    707877 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2221350	       562.4 ns/op	   1778127 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	   10000	    118342 ns/op	      8450 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   81466	     14760 ns/op	     67750 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	15094094	        80.07 ns/op	  12489555 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	30370455	        39.97 ns/op	  25015974 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  842907	      1440 ns/op	    694573 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2345102	       497.7 ns/op	   2009198 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 4408549	       268.8 ns/op	       166.0 p50-ns	      2083 p99-ns	      7125 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2872120	       422.5 ns/op	       625.0 p50-ns	     51041 p99-ns	     97833 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 3732026	       323.3 ns/op	   3092649 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1404692	       847.0 ns/op	   1180637 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  788437	      1551 ns/op	    644760 tasks/s	     274 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1234065	      1024 ns/op	    976981 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	   10000	    118361 ns/op	      8449 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   81165	     14987 ns/op	     66722 tasks/s	     315 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 2380072	       652.0 ns/op	   1533685 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 2177497	       684.3 ns/op	   1461264 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  583573	      1894 ns/op	    528083 tasks/s	     278 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1324587	       903.2 ns/op	   1107208 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 2240857	       535.1 ns/op	       292.0 p50-ns	      2875 p99-ns	      8833 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1451940	       858.0 ns/op	     18833 p50-ns	    135583 p99-ns	    221708 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5417674	       213.8 ns/op	   4677784 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2921079	       408.3 ns/op	   2449382 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  655549	      1851 ns/op	    540268 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1341325	       890.3 ns/op	   1123277 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	   10000	    118679 ns/op	      8426 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   80731	     14936 ns/op	     66954 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 5072256	       238.0 ns/op	   4201444 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1254091	       927.9 ns/op	   1077738 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  597482	      1916 ns/op	    521975 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  744822	      2085 ns/op	    479724 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3952494	       305.0 ns/op	       167.0 p50-ns	      2167 p99-ns	      8083 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  930746	      1271 ns/op	     16375 p50-ns	    389958 p99-ns	    762625 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 3103308	       389.4 ns/op	   2568032 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 2337313	       521.6 ns/op	   1917253 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  756860	      1590 ns/op	    629030 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1906322	       625.1 ns/op	   1599833 tasks/s	     227 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9976	    119600 ns/op	      8361 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   80156	     14894 ns/op	     67141 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1354519	       893.9 ns/op	   1118704 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1917733	       627.5 ns/op	   1593619 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  636874	      1921 ns/op	    520634 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1436841	       838.7 ns/op	   1192275 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  890370	      1296 ns/op	      1000 p50-ns	      3500 p99-ns	     10500 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1697722	       737.3 ns/op	     15500 p50-ns	    120208 p99-ns	    199417 p99.9-ns	     346 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 3593870	       339.9 ns/op	   2942261 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1565016	       772.2 ns/op	   1294972 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  783786	      1560 ns/op	    641094 tasks/s	     277 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1452133	       844.5 ns/op	   1184160 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9998	    119764 ns/op	      8350 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   80204	     14923 ns/op	     67013 tasks/s	     316 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1963484	       623.8 ns/op	   1603072 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1986925	       607.3 ns/op	   1646656 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  702560	      1717 ns/op	    582505 tasks/s	     278 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1555767	       789.4 ns/op	   1266818 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 2219568	       548.1 ns/op	       333.0 p50-ns	      2792 p99-ns	      9042 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1689312	       721.5 ns/op	     17000 p50-ns	    102667 p99-ns	    165583 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5538414	       213.2 ns/op	   4690905 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2890042	       432.6 ns/op	   2311709 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  579235	      2172 ns/op	    460308 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1239907	       913.4 ns/op	   1094853 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	   10000	    118584 ns/op	      8433 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   81804	     14714 ns/op	     67965 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 6190818	       175.5 ns/op	   5698055 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 2255380	       540.7 ns/op	   1849522 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  693604	      1554 ns/op	    643475 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	 1248703	      1585 ns/op	    630795 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 4055714	       298.5 ns/op	       167.0 p50-ns	      2125 p99-ns	      7625 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  893366	      1451 ns/op	     17125 p50-ns	    469458 p99-ns	    916833 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 3152011	       382.6 ns/op	   2614023 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 2123498	       577.1 ns/op	   1732811 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  769492	      1582 ns/op	    632174 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1531998	       789.6 ns/op	   1266401 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	   10000	    118332 ns/op	      8451 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   81186	     14778 ns/op	     67669 tasks/s	     231 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1323547	       903.6 ns/op	   1106633 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1729002	       691.5 ns/op	   1446199 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  630008	      1942 ns/op	    515051 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1000000	      1014 ns/op	    986236 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  888990	      1265 ns/op	      1000 p50-ns	      3834 p99-ns	     10584 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1458643	       809.0 ns/op	     16167 p50-ns	    135500 p99-ns	    215500 p99.9-ns	     346 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	59001522	        19.82 ns/op	  50456140 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	13102766	        86.67 ns/op	  11538406 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  847086	      1396 ns/op	    716083 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2202512	       558.2 ns/op	   1791384 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	   10000	    117990 ns/op	      8475 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   81672	     14727 ns/op	     67903 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	15047611	        79.27 ns/op	  12614328 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	59859231	        33.35 ns/op	  29986838 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  816540	      1469 ns/op	    680957 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2355595	       484.5 ns/op	   2063793 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 4386504	       275.7 ns/op	       166.0 p50-ns	      2125 p99-ns	      8167 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 2802424	       425.6 ns/op	       625.0 p50-ns	     51042 p99-ns	    109417 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5468914	       227.3 ns/op	   4399094 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2830626	       430.8 ns/op	   2321112 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  588471	      2008 ns/op	    497920 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1219658	       880.0 ns/op	   1136349 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	   10000	    118591 ns/op	      8432 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   81033	     14840 ns/op	     67385 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 5236730	       233.8 ns/op	   4277412 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1268641	       947.7 ns/op	   1055175 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  620665	      1876 ns/op	    532952 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  632341	      1759 ns/op	    568535 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3995395	       312.2 ns/op	       167.0 p50-ns	      2333 p99-ns	      8750 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  973686	      1281 ns/op	     16667 p50-ns	    392917 p99-ns	    776708 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 3017025	       405.7 ns/op	   2464966 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 2262466	       530.6 ns/op	   1884788 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  770718	      1614 ns/op	    619681 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1876626	       633.3 ns/op	   1579124 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9950	    119630 ns/op	      8359 tasks/s	     233 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   80400	     14930 ns/op	     66979 tasks/s	     231 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1352394	       879.4 ns/op	   1137107 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1885654	       637.4 ns/op	   1568831 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  638240	      1907 ns/op	    524373 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1358701	       837.4 ns/op	   1194118 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  888589	      1287 ns/op	      1000 p50-ns	      3708 p99-ns	     10667 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1717144	       697.5 ns/op	     15417 p50-ns	    108875 p99-ns	    176208 p99.9-ns	     345 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	57309556	        21.33 ns/op	  46888119 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	12043874	        97.54 ns/op	  10252293 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  857574	      1413 ns/op	    707736 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2575642	       473.2 ns/op	   2113080 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	   10000	    119273 ns/op	      8384 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   80769	     14902 ns/op	     67107 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	13341146	        84.27 ns/op	  11866754 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	29045228	        43.13 ns/op	  23186451 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  851090	      1424 ns/op	    702023 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2728386	       434.6 ns/op	   2300869 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 4293828	       279.8 ns/op	       167.0 p50-ns	      2125 p99-ns	      7584 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 3037519	       393.7 ns/op	       667.0 p50-ns	     42375 p99-ns	     78917 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 3592372	       340.3 ns/op	   2938418 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1541775	       776.2 ns/op	   1288317 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  778615	      1566 ns/op	    638628 tasks/s	     276 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1446174	       763.1 ns/op	   1310371 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9950	    119794 ns/op	      8348 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   80196	     14900 ns/op	     67112 tasks/s	     316 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1956144	       619.2 ns/op	   1614897 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1960471	       604.9 ns/op	   1653068 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  691579	      1745 ns/op	    573042 tasks/s	     278 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1564666	       771.5 ns/op	   1296224 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 2210275	       544.2 ns/op	       333.0 p50-ns	      2708 p99-ns	      8875 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1682984	       697.1 ns/op	     16792 p50-ns	     95500 p99-ns	    156667 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 2962905	       401.9 ns/op	   2487955 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 2196662	       562.8 ns/op	   1776768 tasks/s	     229 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  748282	      1592 ns/op	    628306 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1882058	       635.1 ns/op	   1574657 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9991	    119383 ns/op	      8376 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   79900	     14898 ns/op	     67125 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1379971	       872.2 ns/op	   1146564 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1975071	       606.2 ns/op	   1649700 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  638763	      1907 ns/op	    524391 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1435324	       811.3 ns/op	   1232662 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  878425	      1292 ns/op	      1000 p50-ns	      3583 p99-ns	     10542 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1755574	       667.4 ns/op	     13458 p50-ns	    109708 p99-ns	    176041 p99.9-ns	     346 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	55830398	        20.47 ns/op	  48852003 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	11386863	        90.39 ns/op	  11063208 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  839946	      1426 ns/op	    701115 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2526699	       466.1 ns/op	   2145472 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9982	    119449 ns/op	      8372 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   80250	     14866 ns/op	     67266 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	12627634	        98.84 ns/op	  10117171 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	19846957	        58.42 ns/op	  17116987 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  848538	      1435 ns/op	    697097 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2835268	       437.8 ns/op	   2284070 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 4275974	       280.6 ns/op	       166.0 p50-ns	      2125 p99-ns	      7666 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 3021532	       387.0 ns/op	       708.0 p50-ns	     41334 p99-ns	     75875 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 3716133	       336.3 ns/op	   2973314 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1562944	       764.7 ns/op	   1307742 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  783459	      1555 ns/op	    643281 tasks/s	     276 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1409854	       769.1 ns/op	   1300198 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9963	    119616 ns/op	      8360 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   80304	     14901 ns/op	     67109 tasks/s	     316 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1949103	       621.5 ns/op	   1609115 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1976089	       603.2 ns/op	   1657761 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  696518	      1740 ns/op	    574783 tasks/s	     277 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1555261	       796.7 ns/op	   1255182 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 2214417	       549.6 ns/op	       292.0 p50-ns	      2875 p99-ns	      9042 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1716544	       713.2 ns/op	     16916 p50-ns	    100792 p99-ns	    163250 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5981818	       199.3 ns/op	   5016942 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 2895236	       408.1 ns/op	   2450172 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  635902	      1817 ns/op	    550217 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1554692	       770.2 ns/op	   1298447 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9931	    130076 ns/op	      7688 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   81324	     14833 ns/op	     67418 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 5161824	       230.0 ns/op	   4347778 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1262472	       925.8 ns/op	   1080181 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  627626	      1858 ns/op	    538118 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  540364	      1984 ns/op	    504088 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 3977919	       305.9 ns/op	       167.0 p50-ns	      2167 p99-ns	      7916 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  989312	      1278 ns/op	     16541 p50-ns	    392542 p99-ns	    765875 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/channel-8         	58323207	        19.88 ns/op	  50308224 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/channel-8         	13220797	        85.94 ns/op	  11635939 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/channel-8   	  850612	      1427 ns/op	    700759 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/channel-8   	 2540908	       461.5 ns/op	   2166827 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/channel-8    	    9981	    119155 ns/op	      8392 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/channel-8    	   80466	     14779 ns/op	     67666 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/channel-8         	15195234	        81.44 ns/op	  12279054 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/channel-8         	28266858	        41.13 ns/op	  24312517 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/channel-8   	  846375	      1423 ns/op	    702610 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/channel-8   	 2773166	       451.0 ns/op	   2217383 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/channel-8         	 4249503	       281.5 ns/op	       167.0 p50-ns	      2125 p99-ns	      7666 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/channel-8        	 3039792	       386.1 ns/op	       708.0 p50-ns	     40709 p99-ns	     75125 p99.9-ns	     120 B/op	       1 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	 3645576	       330.0 ns/op	   3029960 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	 1555362	       763.3 ns/op	   1310163 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8   	  780129	      1557 ns/op	    642181 tasks/s	     275 B/op	       3 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8   	 1546897	       794.4 ns/op	   1258784 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8    	    9998	    120037 ns/op	      8331 tasks/s	     303 B/op	       3 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8    	   80012	     14933 ns/op	     66966 tasks/s	     316 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/go-worker-8         	 1850316	       662.8 ns/op	   1508725 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/go-worker-8         	 1971297	       625.3 ns/op	   1599134 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/go-worker-8   	  694543	      1740 ns/op	    574773 tasks/s	     276 B/op	       3 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/go-worker-8   	 1543646	       769.8 ns/op	   1299028 tasks/s	     272 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/go-worker-8         	 2212384	       542.5 ns/op	       333.0 p50-ns	      2750 p99-ns	      9083 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/go-worker-8        	 1582896	       714.5 ns/op	     17084 p50-ns	    100583 p99-ns	    170667 p99.9-ns	     264 B/op	       3 allocs/op
+BenchmarkPool/Noop/workers=1/ants-8         	 5574640	       215.1 ns/op	   4649816 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Noop/workers=8/ants-8         	 3020113	       385.5 ns/op	   2594085 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/ants-8   	  641773	      1848 ns/op	    541087 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/ants-8   	 1552032	       764.1 ns/op	   1308710 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=1/ants-8    	    9914	    119686 ns/op	      8355 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkPool/Wait100us/workers=8/ants-8    	   80290	     14922 ns/op	     67017 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/ants-8         	 4463997	       246.8 ns/op	   4051121 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/ants-8         	 1238008	       979.0 ns/op	   1021449 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/ants-8   	  614703	      1891 ns/op	    528860 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/ants-8   	  618400	      1729 ns/op	    578467 tasks/s	       0 B/op	       0 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/ants-8         	 4099532	       304.1 ns/op	       167.0 p50-ns	      2125 p99-ns	      8084 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/ants-8        	  977907	      1273 ns/op	     16459 p50-ns	    390292 p99-ns	    755625 p99.9-ns	     136 B/op	       2 allocs/op
+BenchmarkPool/Noop/workers=1/pond-8         	 2946577	       407.1 ns/op	   2456666 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/Noop/workers=8/pond-8         	 2258953	       542.1 ns/op	   1844585 tasks/s	     230 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/pond-8   	  755298	      1621 ns/op	    617085 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/pond-8   	 1886701	       632.4 ns/op	   1581313 tasks/s	     228 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=1/pond-8    	    9976	    119367 ns/op	      8377 tasks/s	     232 B/op	       6 allocs/op
+BenchmarkPool/Wait100us/workers=8/pond-8    	   80428	     14900 ns/op	     67116 tasks/s	     231 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=1/submitters=8/pond-8         	 1317630	       893.8 ns/op	   1118820 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/Noop/workers=8/submitters=8/pond-8         	 1807940	       662.9 ns/op	   1508595 tasks/s	     224 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=1/submitters=8/pond-8   	  620035	      1982 ns/op	    504471 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkConcurrentSubmit/SHA2564KiB/workers=8/submitters=8/pond-8   	 1313070	       908.1 ns/op	   1101249 tasks/s	     225 B/op	       6 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=1/pond-8         	  889527	      1287 ns/op	      1000 p50-ns	      3959 p99-ns	     11833 p99.9-ns	     360 B/op	       7 allocs/op
+BenchmarkLatency/Noop/workers=8/callers=32/pond-8        	 1594298	       807.6 ns/op	     15875 p50-ns	    144542 p99-ns	    251042 p99.9-ns	     346 B/op	       7 allocs/op

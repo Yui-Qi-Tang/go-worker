@@ -1,0 +1,96 @@
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	      1598 ns/op	    625698 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	      1366 ns/op	    732145 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	      1378 ns/op	    725862 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	      1376 ns/op	    726910 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	      1392 ns/op	    718168 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	      1279 ns/op	    781965 tasks/s	     767 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	      1280 ns/op	    781027 tasks/s	     767 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	      1230 ns/op	    813102 tasks/s	     767 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	      1220 ns/op	    819960 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	      1222 ns/op	    818306 tasks/s	     767 B/op	       7 allocs/op
+PASS
+ok  	example.com/go-worker-benchmarks	1.717s
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8         	   10000	      4100 ns/op	    243923 tasks/s	     769 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8         	   10000	      3326 ns/op	    300683 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8         	   10000	      2997 ns/op	    333616 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8         	   10000	      3042 ns/op	    328752 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8         	   10000	      3041 ns/op	    328812 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8         	   10000	      1725 ns/op	    579867 tasks/s	     772 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8         	   10000	      1717 ns/op	    582571 tasks/s	     770 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8         	   10000	      1720 ns/op	    581505 tasks/s	     770 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8         	   10000	      1746 ns/op	    572862 tasks/s	     769 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8         	   10000	      1752 ns/op	    570727 tasks/s	     768 B/op	       7 allocs/op
+PASS
+ok  	example.com/go-worker-benchmarks	0.418s
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkPool/Wait100us/workers=1/go-worker-8         	    1000	    133342 ns/op	      7500 tasks/s	     777 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8         	    1000	    133260 ns/op	      7504 tasks/s	     776 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8         	    1000	    134351 ns/op	      7443 tasks/s	     773 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8         	    1000	    133875 ns/op	      7470 tasks/s	     773 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8         	    1000	    134045 ns/op	      7460 tasks/s	     774 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8         	    1000	     17045 ns/op	     58667 tasks/s	     800 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8         	    1000	     16968 ns/op	     58934 tasks/s	     783 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8         	    1000	     16886 ns/op	     59222 tasks/s	     793 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8         	    1000	     16933 ns/op	     59056 tasks/s	     794 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8         	    1000	     16955 ns/op	     58981 tasks/s	     787 B/op	       7 allocs/op
+PASS
+ok  	example.com/go-worker-benchmarks	0.910s
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	      1483 ns/op	    674497 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	      1369 ns/op	    730411 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	      1335 ns/op	    749190 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	      1330 ns/op	    751867 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=1/go-worker-8         	  100000	      1342 ns/op	    745084 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	      1218 ns/op	    820799 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	      1221 ns/op	    818675 tasks/s	     767 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	      1213 ns/op	    824251 tasks/s	     767 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	      1227 ns/op	    815135 tasks/s	     767 B/op	       7 allocs/op
+BenchmarkPool/Noop/workers=8/go-worker-8         	  100000	      1232 ns/op	    811360 tasks/s	     767 B/op	       7 allocs/op
+PASS
+ok  	example.com/go-worker-benchmarks	1.466s
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8         	   10000	      4099 ns/op	    243962 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8         	   10000	      3327 ns/op	    300546 tasks/s	     769 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8         	   10000	      2978 ns/op	    335804 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8         	   10000	      3024 ns/op	    330737 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=1/go-worker-8         	   10000	      2999 ns/op	    333468 tasks/s	     768 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8         	   10000	      1739 ns/op	    574911 tasks/s	     772 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8         	   10000	      1731 ns/op	    577565 tasks/s	     770 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8         	   10000	      1721 ns/op	    581219 tasks/s	     769 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8         	   10000	      1710 ns/op	    584748 tasks/s	     769 B/op	       7 allocs/op
+BenchmarkPool/SHA2564KiB/workers=8/go-worker-8         	   10000	      1778 ns/op	    562348 tasks/s	     769 B/op	       7 allocs/op
+PASS
+ok  	example.com/go-worker-benchmarks	0.422s
+goos: darwin
+goarch: arm64
+pkg: example.com/go-worker-benchmarks
+cpu: Apple M5 Max
+BenchmarkPool/Wait100us/workers=1/go-worker-8         	    1000	    133172 ns/op	      7509 tasks/s	     775 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8         	    1000	    132670 ns/op	      7538 tasks/s	     775 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8         	    1000	    132071 ns/op	      7572 tasks/s	     775 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8         	    1000	    131772 ns/op	      7589 tasks/s	     775 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=1/go-worker-8         	    1000	    132416 ns/op	      7552 tasks/s	     775 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8         	    1000	     16751 ns/op	     59699 tasks/s	     796 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8         	    1000	     16693 ns/op	     59905 tasks/s	     791 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8         	    1000	     16678 ns/op	     59960 tasks/s	     795 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8         	    1000	     16714 ns/op	     59829 tasks/s	     784 B/op	       7 allocs/op
+BenchmarkPool/Wait100us/workers=8/go-worker-8         	    1000	     16701 ns/op	     59877 tasks/s	     783 B/op	       7 allocs/op
+PASS
+ok  	example.com/go-worker-benchmarks	0.905s

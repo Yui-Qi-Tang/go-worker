@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
-	"go.uber.org/zap"
-	worker "yuki-tang.github.com"
-	"yuki-tang.github.com/durable"
+	worker "github.com/Yui-Qi-Tang/go-worker"
+	"github.com/Yui-Qi-Tang/go-worker/durable"
 )
 
 // writeTask completes and syncs the required file write before returning. Writing
@@ -21,10 +21,10 @@ type writeTask struct {
 	text string
 }
 
-func (t *writeTask) ID() string { return t.path }
-func (*writeTask) Init() error  { return nil }
-func (*writeTask) Done() error  { return nil }
-func (t *writeTask) Run() error {
+func (t *writeTask) ID() string               { return t.path }
+func (*writeTask) Init(context.Context) error { return nil }
+func (*writeTask) Done(context.Context) error { return nil }
+func (t *writeTask) Run(context.Context) error {
 	file, err := os.OpenFile(t.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
@@ -33,7 +33,7 @@ func (t *writeTask) Run() error {
 	return errors.Join(writeErr, file.Sync(), file.Close())
 }
 
-func buildWrite(job durable.Job) (worker.Task, error) {
+func buildWrite(_ context.Context, job durable.Job) (worker.Task, error) {
 	if job.Kind != "write-file" || job.Version != 1 {
 		return nil, fmt.Errorf("unsupported job kind/version: %s/%d", job.Kind, job.Version)
 	}
@@ -64,17 +64,11 @@ func runExample(dir string) (err error) {
 	// This job is already durable, even though the Master does not exist yet.
 	fmt.Println(accepted.State)
 
-	m, err := worker.NewMaster(worker.WithQueueCapacity(1), worker.WithMasterLogger(zap.NewNop()))
+	m, err := worker.NewMaster(worker.WithWorkers(1, 1), worker.WithQueueCapacity(1), worker.WithMasterLogger(slog.New(slog.DiscardHandler)))
 	if err != nil {
 		return err
 	}
 	defer m.Stop()
-	if err := m.AddWorkers(1); err != nil {
-		return err
-	}
-	if err := m.WakeAllWorkersUp(); err != nil {
-		return err
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	finished := make(chan error, 1)
 	go func() { finished <- q.Run(ctx, m, buildWrite, 1) }()
